@@ -1,0 +1,142 @@
+name: Kernel Build (alioth) - clang-r547379 KSUNEXT
+
+on:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      KERNEL_TREE:
+        description: "Kernel Tree"
+        default: "https://github.com/Impqxr/kernel_xiaomi_sm8250"
+        required: true
+      KERNEL_TREE_BRANCH:
+        description: "Kernel Tree Branch"
+        required: true
+        default: "ksu-next"
+      ANYKERNEL_URL:
+        description: "AnyKernel Url (leave blank if you dont want AnyKernel)"
+        default: "https://github.com/Impqxr/AKalioth"
+        required: false
+      ANYKERNEL_BRANCH:
+        description: "AnyKernel Branch"
+        default: "main"
+        required: false
+      UPLOAD_TO_RELEASE:
+        description: "Upload to release"
+        type: boolean
+        default: false
+
+jobs:
+  build:
+    if: github.event.repository.owner.id == github.event.sender.id
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Display User Inputs
+        run: |
+          echo "::group::User Environment Variables"
+          echo "Kernel Tree: ${{ github.event.inputs.KERNEL_TREE }}/tree/${{ github.event.inputs.KERNEL_TREE_BRANCH }}"
+          echo "AnyKernel Url: ${{ github.event.inputs.ANYKERNEL_URL }}/tree/${{ github.event.inputs.ANYKERNEL_BRANCH }}"
+          echo "::endgroup::"
+
+      - name: Initialize workspace
+        run: |
+          mkdir workspace
+          cd workspace
+          echo "workspace-folder=$(pwd)" >> $GITHUB_OUTPUT
+          echo "start_time=$(date +%s)" >> $GITHUB_OUTPUT
+        id: workspace
+
+      - name: Prepare the build environment
+        run: |
+          sudo apt install flex && sudo apt install libncurses6
+          wget https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r547379.tar.gz -O clang.tar.gz
+          mkdir clang
+          tar -xf clang.tar.gz -C clang
+          echo "tools-folder=$(pwd)" >> $GITHUB_OUTPUT
+        working-directory: ${{ steps.workspace.outputs.workspace-folder }}
+        id: tools
+
+      - name: Clone kernel source
+        run: |
+          git clone --depth=1 ${{ github.event.inputs.KERNEL_TREE }} -b ${{ github.event.inputs.KERNEL_TREE_BRANCH }} kernel_tree
+          echo "kernel-folder=$(pwd)/kernel_tree" >> $GITHUB_OUTPUT
+        working-directory: ${{ steps.workspace.outputs.workspace-folder }}
+        id: kernel
+
+      - name: Building kernel
+        run: |
+          git submodule init && git submodule update
+          export ARCH=arm64
+          export SUBARCH=ARM64
+          export KBUILD_BUILD_USER="noone"
+          export KBUILD_BUILD_HOST="nowhere"
+          make O=out vendor/alioth_defconfig PATH="${{ steps.tools.outputs.tools-folder }}/clang/bin:$PATH"
+          make O=out CC=clang -j$(nproc --all) PATH="${{ steps.tools.outputs.tools-folder }}/clang/bin:$PATH" CROSS_COMPILE=aarch64-linux-gnu- LLVM=1 LLVM_IAS=1
+          echo "elapsed_time=$(echo "$(date +%s)"-"${{ steps.workspace.outputs.start_time }}" | bc)" >> $GITHUB_OUTPUT
+        working-directory: ${{ steps.kernel.outputs.kernel-folder }}
+        id: build
+
+      - name: AnyKernel3
+        if: ${{ success() && github.event.inputs.ANYKERNEL_URL != '' && github.event.inputs.ANYKERNEL_BRANCH != '' }}
+        run: |
+          anykernel_branch=${{ github.event.inputs.ANYKERNEL_BRANCH }}
+          git clone --recursive --depth=1 ${{ github.event.inputs.ANYKERNEL_URL }} -b $anykernel_branch AnyKernel3
+          # Check if Image.gz exists, then copy it to AnyKernel3 folder
+          if [ -e "Image.gz" ]; then
+            cp -f Image.gz AnyKernel3
+          fi
+          # Check if dtb.img exists, then rename and copy it to AnyKernel3 folder
+          if [ -e "dtb.img" ]; then
+            cp -f dtb.img AnyKernel3/dtb
+          fi
+          # Check if dtbo.img exists, then copy it to AnyKernel3 folder
+          if [ -e "dtbo.img" ]; then
+            cp -f dtbo.img AnyKernel3
+          fi
+          name=N0kernel-alioth-KSUNEXT.zip
+          cd AnyKernel3
+          zip -q -r $name *
+          mv $name ../
+          echo "zipname=$name" >> $GITHUB_OUTPUT
+        working-directory: ${{ steps.kernel.outputs.kernel-folder }}/out/arch/arm64/boot/
+        id: anykernel
+
+      - name: Upload to Release
+        if: ${{ github.event.inputs.UPLOAD_TO_RELEASE == 'true' }}
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            ${{ steps.kernel.outputs.kernel-folder }}/out/arch/arm64/boot/${{ steps.anykernel.outputs.zipname }}
+          name: alioth-${{ github.run_id }}
+          tag_name: ${{ github.run_id }}
+          body: |
+            <b>Kernel successfully built!</b>, took ${{ steps.build.outputs.elapsed_time }} seconds.
+
+            <b>Kernel tree</b>: ${{ github.event.inputs.KERNEL_TREE }}/tree/${{ github.event.inputs.KERNEL_TREE_BRANCH }}
+            <b>Action</b>: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/upload-artifact@v4
+        if: ${{ success() && github.event.inputs.UPLOAD_TO_RELEASE != 'true' }}
+        with:
+          name: Image.gz
+          path: ${{ steps.kernel.outputs.kernel-folder }}/out/arch/arm64/boot/Image.gz
+      - uses: actions/upload-artifact@v4
+        if: ${{ success() && github.event.inputs.UPLOAD_TO_RELEASE != 'true' }}
+        with:
+          name: dtb
+          path: ${{ steps.kernel.outputs.kernel-folder }}/out/arch/arm64/boot/dtb.img
+      - uses: actions/upload-artifact@v4
+        if: ${{ success() && github.event.inputs.UPLOAD_TO_RELEASE != 'true' }}
+        with:
+          name: dtbo.img
+          path: ${{ steps.kernel.outputs.kernel-folder }}/out/arch/arm64/boot/dtbo.img
+      - uses: actions/upload-artifact@v4
+        if: ${{ success() && github.event.inputs.ANYKERNEL_URL != '' && github.event.inputs.UPLOAD_TO_RELEASE != 'true' }}
+        with:
+          name: ${{ steps.anykernel.outputs.zipname }}
+          path: |
+            ${{ steps.kernel.outputs.kernel-folder }}/out/arch/arm64/boot/AnyKernel3/
+            !${{ steps.kernel.outputs.kernel-folder }}/out/arch/arm64/boot/AnyKernel3/.git
+            !${{ steps.kernel.outputs.kernel-folder }}/out/arch/arm64/boot/AnyKernel3/.github
