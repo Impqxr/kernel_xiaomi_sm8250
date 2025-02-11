@@ -20,7 +20,7 @@ on:
         required: false
         default: "https://raw.githubusercontent.com/rsuntk/KernelSU/main/kernel/setup.sh"
       KERNELSU_SETUP_BRANCH:
-        description: "KernelSU"
+        description: "KernelSU Branch"
         required: false
         default: "main"
       ANYKERNEL_URL:
