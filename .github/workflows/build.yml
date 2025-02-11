@@ -33,7 +33,7 @@ on:
         required: false
       ANYKERNEL_ZIP_NAME:
         description: "Uploaded ZIP name"
-        default: "N0kernel-alioth-RKSU.zip"
+        default: "N0kernel-alioth.zip"
         required: false
       UPLOAD_TO_RELEASE:
         description: "Upload to release"
