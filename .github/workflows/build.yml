@@ -52,17 +52,10 @@ jobs:
           echo "::group::Inputs"
           echo "Clang: ${{ github.event.inputs.CLANG_TARBALL }}"
           echo "Kernel Tree: ${{ github.event.inputs.KERNEL_TREE }}/tree/${{ github.event.inputs.KERNEL_TREE_BRANCH }}"
-          echo "AnyKernel Url: ${{ github.event.inputs.ANYKERNEL_URL }}/tree/${{ github.event.inputs.ANYKERNEL_BRANCH }}"
+          echo "AnyKernel URL: ${{ github.event.inputs.ANYKERNEL_URL }}/tree/${{ github.event.inputs.ANYKERNEL_BRANCH }}"
+          echo "KernelSU Setup URL": ${{ github.event.inputs.KERNELSU_SETUP_URL }}
+          echo "KernelSU Branch": ${{ github.event.inputs.KERNELSU_SETUP_BRANCH }}
           echo "::endgroup::"
-
-      - name: Get next version code
-        run: |
-          TAG=$(gh release list -L 1 | awk -F '\t' '{print $3}')
-          if [ -z "$TAG" ]; then TAG=0; fi
-          echo "next_ver_code=$((TAG + 1))" >> $GITHUB_OUTPUT
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        id: next_ver_code
 
       - name: Initialize workspace
         run: |
@@ -111,20 +104,6 @@ jobs:
         working-directory: ${{ steps.workspace.outputs.kernel_folder }}/out/arch/arm64/boot/
         id: anykernel
 
-      - name: Upload to Release
-        if: ${{ github.event.inputs.UPLOAD_TO_RELEASE == 'true' }}
-        uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            ${{ steps.workspace.outputs.kernel_folder }}/out/arch/arm64/boot/${{ github.event.inputs.ANYKERNEL_ZIP_NAME }}
-          name: ${{ steps.next_ver_code.outputs.next_ver_code }}
-          tag_name: ${{ steps.next_ver_code.outputs.next_ver_code }}
-          body: |
-            <b>Kernel tree</b>: ${{ github.event.inputs.KERNEL_TREE }}/tree/${{ github.event.inputs.KERNEL_TREE_BRANCH }}
-            For more details: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
       - uses: actions/upload-artifact@v4
         if: ${{ success() && github.event.inputs.UPLOAD_TO_RELEASE != 'true' }}
         with:
@@ -148,3 +127,17 @@ jobs:
             ${{ steps.workspace.outputs.kernel_folder }}/out/arch/arm64/boot/AnyKernel3/
             !${{ steps.workspace.outputs.kernel_folder }}/out/arch/arm64/boot/AnyKernel3/.git
             !${{ steps.workspace.outputs.kernel_folder }}/out/arch/arm64/boot/AnyKernel3/.github
+
+      - name: Upload to Release
+        if: ${{ github.event.inputs.UPLOAD_TO_RELEASE == 'true' }}
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            ${{ steps.workspace.outputs.kernel_folder }}/out/arch/arm64/boot/${{ github.event.inputs.ANYKERNEL_ZIP_NAME }}
+          name: ${{ github.run_id }}
+          tag_name: ${{ github.run_id }}
+          body: |
+            <b>Kernel tree</b>: ${{ github.event.inputs.KERNEL_TREE }}/tree/${{ github.event.inputs.KERNEL_TREE_BRANCH }}
+            For more details: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
