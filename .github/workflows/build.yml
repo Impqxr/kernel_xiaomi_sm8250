@@ -1,10 +1,10 @@
-name: Kernel Build Alioth, RKSU
+name: Kernel Build Alioth
 
 on:
   workflow_dispatch:
     inputs:
       CLANG_TARBALL:
-        description: "Clang prebuilt for Linux, tarball(tar.gz)"
+        description: "Clang tarball(tar.gz)"
         default: "https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r547379.tar.gz"
         required: true
       KERNEL_TREE:
@@ -15,6 +15,14 @@ on:
         description: "Kernel Tree Branch"
         required: true
         default: "base"
+      KERNELSU_SETUP_URL:
+        description: "KernelSU setup.sh URL"
+        required: false
+        default: "https://raw.githubusercontent.com/rsuntk/KernelSU/main/kernel/setup.sh"
+      KERNELSU_SETUP_BRANCH:
+        description: "KernelSU"
+        required: false
+        default: "main"
       ANYKERNEL_URL:
         description: "AnyKernel URL (leave blank if you don't want AnyKernel)"
         default: "https://github.com/Impqxr/AKalioth"
@@ -25,7 +33,7 @@ on:
         required: false
       ANYKERNEL_ZIP_NAME:
         description: "Uploaded ZIP name"
-        default: "N0kernel-alioth.zip"
+        default: "N0kernel-alioth-RKSU.zip"
         required: false
       UPLOAD_TO_RELEASE:
         description: "Upload to release"
@@ -75,7 +83,9 @@ jobs:
           export KBUILD_BUILD_USER="never"
           export KBUILD_BUILD_HOST="worry"
 
-          curl -LSs "https://raw.githubusercontent.com/rsuntk/KernelSU/main/kernel/setup.sh" | bash -s main
+          if [ -n "${{ github.event.inputs.KERNELSU_SETUP_URL }}" ] && [ -n "${{ github.event.inputs.KERNELSU_SETUP_BRANCH }}" ]; then
+            curl -LSs "${{ github.event.inputs.KERNELSU_SETUP_URL }}" | bash -s ${{ github.event.inputs.KERNELSU_SETUP_BRANCH }}
+          fi
 
           make O=out vendor/alioth_defconfig PATH="${{ steps.workspace.outputs.tools_folder }}/clang/bin:$PATH"
           make O=out CC=clang -j$(nproc --all) PATH="${{ steps.workspace.outputs.tools_folder }}/clang/bin:$PATH" CROSS_COMPILE=aarch64-linux-gnu- LLVM=1 LLVM_IAS=1
