@@ -111,20 +111,24 @@ jobs:
         working-directory: ${{ steps.workspace.outputs.kernel_folder }}/out/arch/arm64/boot/
         id: anykernel
 
-      - uses: actions/upload-artifact@v4
+      - name: "Upload Image.gz"
+        uses: actions/upload-artifact@v4
         with:
           name: Image.gz
           path: ${{ steps.workspace.outputs.kernel_folder }}/out/arch/arm64/boot/Image.gz
-      - uses: actions/upload-artifact@v4
+      - name: "Upload dtb"
+        uses: actions/upload-artifact@v4
         with:
           name: dtb
           path: ${{ steps.workspace.outputs.kernel_folder }}/out/arch/arm64/boot/dtb.img
-      - uses: actions/upload-artifact@v4
+      - name: "Upload dtbo.img (AOSP)"
+        uses: actions/upload-artifact@v4
         with:
           name: dtbo.img
           path: ${{ steps.workspace.outputs.kernel_folder }}/out/arch/arm64/boot/dtbo.img
-      - uses: actions/upload-artifact@v4
-        if: ${{ success() && github.event.inputs.CREATE_ANYKERNEL != 'true' }}
+      - name: "Upload AnyKernel"
+        uses: actions/upload-artifact@v4
+        if: ${{ success() && github.event.inputs.CREATE_ANYKERNEL == 'true'}}
         with:
           name: ${{ github.event.inputs.ANYKERNEL_ZIP_NAME }}
           path: |
