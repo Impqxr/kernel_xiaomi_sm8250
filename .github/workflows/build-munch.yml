@@ -15,16 +15,26 @@ on:
         description: "Kernel Tree Branch"
         required: true
         default: "base-munch"
+
+      ADD_KERNELSU:
+        description: "Add KernelSU"
+        type: boolean
+        default: true
       KERNELSU_SETUP_URL:
         description: "KernelSU setup.sh URL"
         required: false
-        default: "https://raw.githubusercontent.com/rsuntk/KernelSU/main/kernel/setup.sh"
+        default: "https://raw.githubusercontent.com/rifsxd/KernelSU-Next/refs/heads/next/kernel/setup.sh"
       KERNELSU_SETUP_BRANCH:
         description: "KernelSU Branch"
         required: false
-        default: "main"
+        default: "next"
+
+      CREATE_ANYKERNEL:
+        description: "Create AnyKernel"
+        type: boolean
+        default: true
       ANYKERNEL_URL:
-        description: "AnyKernel URL (leave blank if you don't want AnyKernel)"
+        description: "AnyKernel URL"
         default: "https://github.com/Impqxr/AKmunch"
         required: false
       ANYKERNEL_BRANCH:
@@ -39,8 +49,9 @@ on:
         description: "Use DTBO for HyperOS/MIUI"
         type: boolean
         default: false
+
       UPLOAD_TO_RELEASE:
-        description: "Upload to release"
+        description: "Upload to releases"
         type: boolean
         default: false
 
@@ -56,7 +67,9 @@ jobs:
           echo "::group::Inputs"
           echo "Clang: ${{ github.event.inputs.CLANG_TARBALL }}"
           echo "Kernel Tree: ${{ github.event.inputs.KERNEL_TREE }}/tree/${{ github.event.inputs.KERNEL_TREE_BRANCH }}"
+          echo "Create AnyKernel: ${{ github.event.inputs.CREATE_ANYKERNEL }}"
           echo "AnyKernel URL: ${{ github.event.inputs.ANYKERNEL_URL }}/tree/${{ github.event.inputs.ANYKERNEL_BRANCH }}"
+          echo "Add KernelSU: ${{ github.event.inputs.ADD_KERNELSU }}"
           echo "KernelSU Setup URL": ${{ github.event.inputs.KERNELSU_SETUP_URL }}
           echo "KernelSU Branch": ${{ github.event.inputs.KERNELSU_SETUP_BRANCH }}
           echo "::endgroup::"
@@ -80,7 +93,7 @@ jobs:
           export KBUILD_BUILD_USER="never"
           export KBUILD_BUILD_HOST="worry"
 
-          if [ -n "${{ github.event.inputs.KERNELSU_SETUP_URL }}" ] && [ -n "${{ github.event.inputs.KERNELSU_SETUP_BRANCH }}" ]; then
+          if [ ${{ github.event.inputs.ADD_KERNELSU }} == 'true' ]; then
             curl -LSs "${{ github.event.inputs.KERNELSU_SETUP_URL }}" | bash -s ${{ github.event.inputs.KERNELSU_SETUP_BRANCH }}
           fi
 
@@ -90,7 +103,7 @@ jobs:
         id: build
 
       - name: AnyKernel3
-        if: ${{ success() && github.event.inputs.ANYKERNEL_URL != '' && github.event.inputs.ANYKERNEL_BRANCH != '' && github.event.inputs.ANYKERNEL_ZIP_NAME != '' }}
+        if: ${{ success() && github.event.inputs.CREATE_ANYKERNEL == 'true' }}
         run: |
           git clone --recursive --depth=1 ${{ github.event.inputs.ANYKERNEL_URL }} -b ${{ github.event.inputs.ANYKERNEL_BRANCH }} AnyKernel3
           if [ -e "Image.gz" ]; then
@@ -124,7 +137,7 @@ jobs:
           name: dtbo.img
           path: ${{ steps.workspace.outputs.kernel_folder }}/out/arch/arm64/boot/dtbo.img
       - uses: actions/upload-artifact@v4
-        if: ${{ success() && github.event.inputs.ANYKERNEL_URL != '' && github.event.inputs.UPLOAD_TO_RELEASE != 'true' }}
+        if: ${{ success() && github.event.inputs.CREATE_ANYKERNEL != 'true' && github.event.inputs.UPLOAD_TO_RELEASE != 'true' }}
         with:
           name: ${{ github.event.inputs.ANYKERNEL_ZIP_NAME }}
           path: |
