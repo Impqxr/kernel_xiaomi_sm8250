@@ -35,6 +35,10 @@ on:
         description: "Uploaded ZIP name"
         default: "N0kernel-alioth.zip"
         required: false
+      ANYKERNEL_HYPEROS_DTBO:
+        description: "Use DTBO for HyperOS/MIUI"
+        type: boolean
+        default: false
       UPLOAD_TO_RELEASE:
         description: "Upload to release"
         type: boolean
@@ -95,7 +99,7 @@ jobs:
           if [ -e "dtb.img" ]; then
             cp -f dtb.img AnyKernel3/dtb
           fi
-          if [ -e "dtbo.img" ]; then
+          if [ -e "dtbo.img" ] && [ ${{ github.event.inputs.ANYKERNEL_HYPEROS_DTBO }} != "true" ]; then
             cp -f dtbo.img AnyKernel3
           fi
           cd AnyKernel3

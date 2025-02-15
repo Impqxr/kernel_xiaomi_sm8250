@@ -1,0 +1,147 @@
+name: Kernel Build Munch
+
+on:
+  workflow_dispatch:
+    inputs:
+      CLANG_TARBALL:
+        description: "Clang tarball(tar.gz)"
+        default: "https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r547379.tar.gz"
+        required: true
+      KERNEL_TREE:
+        description: "Kernel Tree"
+        default: "https://github.com/Impqxr/kernel_xiaomi_sm8250"
+        required: true
+      KERNEL_TREE_BRANCH:
+        description: "Kernel Tree Branch"
+        required: true
+        default: "base-munch"
+      KERNELSU_SETUP_URL:
+        description: "KernelSU setup.sh URL"
+        required: false
+        default: "https://raw.githubusercontent.com/rsuntk/KernelSU/main/kernel/setup.sh"
+      KERNELSU_SETUP_BRANCH:
+        description: "KernelSU Branch"
+        required: false
+        default: "main"
+      ANYKERNEL_URL:
+        description: "AnyKernel URL (leave blank if you don't want AnyKernel)"
+        default: "https://github.com/Impqxr/AKmunch"
+        required: false
+      ANYKERNEL_BRANCH:
+        description: "AnyKernel Branch"
+        default: "main"
+        required: false
+      ANYKERNEL_ZIP_NAME:
+        description: "Uploaded ZIP name"
+        default: "N0kernel-munch.zip"
+        required: false
+      ANYKERNEL_HYPEROS_DTBO:
+        description: "Use DTBO for HyperOS/MIUI"
+        type: boolean
+        default: false
+      UPLOAD_TO_RELEASE:
+        description: "Upload to release"
+        type: boolean
+        default: false
+
+jobs:
+  build:
+    if: github.event.repository.owner.id == github.event.sender.id
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Display Inputs
+        run: |
+          echo "::group::Inputs"
+          echo "Clang: ${{ github.event.inputs.CLANG_TARBALL }}"
+          echo "Kernel Tree: ${{ github.event.inputs.KERNEL_TREE }}/tree/${{ github.event.inputs.KERNEL_TREE_BRANCH }}"
+          echo "AnyKernel URL: ${{ github.event.inputs.ANYKERNEL_URL }}/tree/${{ github.event.inputs.ANYKERNEL_BRANCH }}"
+          echo "KernelSU Setup URL": ${{ github.event.inputs.KERNELSU_SETUP_URL }}
+          echo "KernelSU Branch": ${{ github.event.inputs.KERNELSU_SETUP_BRANCH }}
+          echo "::endgroup::"
+
+      - name: Initialize workspace
+        run: |
+          sudo apt install flex libncurses6 -y
+          wget ${{ github.event.inputs.CLANG_TARBALL }} -O clang.tar.gz
+          mkdir clang
+          tar -xf clang.tar.gz -C clang
+          echo "tools_folder=$(pwd)" >> $GITHUB_OUTPUT
+
+          git clone --depth=1 ${{ github.event.inputs.KERNEL_TREE }} -b ${{ github.event.inputs.KERNEL_TREE_BRANCH }} kernel_tree
+          echo "kernel_folder=$(pwd)/kernel_tree" >> $GITHUB_OUTPUT
+        id: workspace
+
+      - name: Building kernel
+        run: |
+          export ARCH=arm64
+          export SUBARCH=ARM64
+          export KBUILD_BUILD_USER="never"
+          export KBUILD_BUILD_HOST="worry"
+
+          if [ -n "${{ github.event.inputs.KERNELSU_SETUP_URL }}" ] && [ -n "${{ github.event.inputs.KERNELSU_SETUP_BRANCH }}" ]; then
+            curl -LSs "${{ github.event.inputs.KERNELSU_SETUP_URL }}" | bash -s ${{ github.event.inputs.KERNELSU_SETUP_BRANCH }}
+          fi
+
+          make O=out vendor/munch_defconfig PATH="${{ steps.workspace.outputs.tools_folder }}/clang/bin:$PATH"
+          make O=out CC=clang -j$(nproc --all) PATH="${{ steps.workspace.outputs.tools_folder }}/clang/bin:$PATH" CROSS_COMPILE=aarch64-linux-gnu- LLVM=1 LLVM_IAS=1
+        working-directory: ${{ steps.workspace.outputs.kernel_folder }}
+        id: build
+
+      - name: AnyKernel3
+        if: ${{ success() && github.event.inputs.ANYKERNEL_URL != '' && github.event.inputs.ANYKERNEL_BRANCH != '' && github.event.inputs.ANYKERNEL_ZIP_NAME != '' }}
+        run: |
+          git clone --recursive --depth=1 ${{ github.event.inputs.ANYKERNEL_URL }} -b ${{ github.event.inputs.ANYKERNEL_BRANCH }} AnyKernel3
+          if [ -e "Image.gz" ]; then
+            cp -f Image.gz AnyKernel3
+          fi
+          if [ -e "dtb.img" ]; then
+            cp -f dtb.img AnyKernel3/dtb
+          fi
+          if [ -e "dtbo.img" ] && [ ${{ github.event.inputs.ANYKERNEL_HYPEROS_DTBO }} != "true" ]; then
+            cp -f dtbo.img AnyKernel3
+          fi
+          cd AnyKernel3
+          zip -q -r "${{ github.event.inputs.ANYKERNEL_ZIP_NAME }}" *
+          mv "${{ github.event.inputs.ANYKERNEL_ZIP_NAME }}" ../
+        working-directory: ${{ steps.workspace.outputs.kernel_folder }}/out/arch/arm64/boot/
+        id: anykernel
+
+      - uses: actions/upload-artifact@v4
+        if: ${{ success() && github.event.inputs.UPLOAD_TO_RELEASE != 'true' }}
+        with:
+          name: Image.gz
+          path: ${{ steps.workspace.outputs.kernel_folder }}/out/arch/arm64/boot/Image.gz
+      - uses: actions/upload-artifact@v4
+        if: ${{ success() && github.event.inputs.UPLOAD_TO_RELEASE != 'true' }}
+        with:
+          name: dtb
+          path: ${{ steps.workspace.outputs.kernel_folder }}/out/arch/arm64/boot/dtb.img
+      - uses: actions/upload-artifact@v4
+        if: ${{ success() && github.event.inputs.UPLOAD_TO_RELEASE != 'true' }}
+        with:
+          name: dtbo.img
+          path: ${{ steps.workspace.outputs.kernel_folder }}/out/arch/arm64/boot/dtbo.img
+      - uses: actions/upload-artifact@v4
+        if: ${{ success() && github.event.inputs.ANYKERNEL_URL != '' && github.event.inputs.UPLOAD_TO_RELEASE != 'true' }}
+        with:
+          name: ${{ github.event.inputs.ANYKERNEL_ZIP_NAME }}
+          path: |
+            ${{ steps.workspace.outputs.kernel_folder }}/out/arch/arm64/boot/AnyKernel3/
+            !${{ steps.workspace.outputs.kernel_folder }}/out/arch/arm64/boot/AnyKernel3/.git
+            !${{ steps.workspace.outputs.kernel_folder }}/out/arch/arm64/boot/AnyKernel3/.github
+
+      - name: Upload to Release
+        if: ${{ github.event.inputs.UPLOAD_TO_RELEASE == 'true' }}
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            ${{ steps.workspace.outputs.kernel_folder }}/out/arch/arm64/boot/${{ github.event.inputs.ANYKERNEL_ZIP_NAME }}
+          name: ${{ github.run_id }}
+          tag_name: ${{ github.run_id }}
+          body: |
+            <b>Kernel tree</b>: ${{ github.event.inputs.KERNEL_TREE }}/tree/${{ github.event.inputs.KERNEL_TREE_BRANCH }}
+            For more details: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
