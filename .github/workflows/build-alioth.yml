@@ -3,10 +3,6 @@ name: Kernel Build Alioth
 on:
   workflow_dispatch:
     inputs:
-      CLANG_TARBALL:
-        description: "Clang tarball(tar.gz)"
-        default: "https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r547379.tar.gz"
-        required: true
       KERNEL_TREE:
         description: "Kernel Tree"
         default: "https://github.com/Impqxr/kernel_xiaomi_sm8250"
@@ -46,12 +42,7 @@ on:
         default: "N0kernel-alioth.zip"
         required: false
       ANYKERNEL_HYPEROS_DTBO:
-        description: "Use DTBO for HyperOS/MIUI"
-        type: boolean
-        default: false
-
-      UPLOAD_TO_RELEASE:
-        description: "Upload to releases"
+        description: "Use DTBO for HyperOS/MIUI for AnyKernel"
         type: boolean
         default: false
 
@@ -65,7 +56,6 @@ jobs:
       - name: Display Inputs
         run: |
           echo "::group::Inputs"
-          echo "Clang: ${{ github.event.inputs.CLANG_TARBALL }}"
           echo "Kernel Tree: ${{ github.event.inputs.KERNEL_TREE }}/tree/${{ github.event.inputs.KERNEL_TREE_BRANCH }}"
           echo "Create AnyKernel: ${{ github.event.inputs.CREATE_ANYKERNEL }}"
           echo "AnyKernel URL: ${{ github.event.inputs.ANYKERNEL_URL }}/tree/${{ github.event.inputs.ANYKERNEL_BRANCH }}"
@@ -77,7 +67,7 @@ jobs:
       - name: Initialize workspace
         run: |
           sudo apt install flex libncurses6 -y
-          wget ${{ github.event.inputs.CLANG_TARBALL }} -O clang.tar.gz
+          wget https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r547379.tar.gz -O clang.tar.gz
           mkdir clang
           tar -xf clang.tar.gz -C clang
           echo "tools_folder=$(pwd)" >> $GITHUB_OUTPUT
@@ -122,39 +112,22 @@ jobs:
         id: anykernel
 
       - uses: actions/upload-artifact@v4
-        if: ${{ success() && github.event.inputs.UPLOAD_TO_RELEASE != 'true' }}
         with:
           name: Image.gz
           path: ${{ steps.workspace.outputs.kernel_folder }}/out/arch/arm64/boot/Image.gz
       - uses: actions/upload-artifact@v4
-        if: ${{ success() && github.event.inputs.UPLOAD_TO_RELEASE != 'true' }}
         with:
           name: dtb
           path: ${{ steps.workspace.outputs.kernel_folder }}/out/arch/arm64/boot/dtb.img
       - uses: actions/upload-artifact@v4
-        if: ${{ success() && github.event.inputs.UPLOAD_TO_RELEASE != 'true' }}
         with:
           name: dtbo.img
           path: ${{ steps.workspace.outputs.kernel_folder }}/out/arch/arm64/boot/dtbo.img
       - uses: actions/upload-artifact@v4
-        if: ${{ success() && github.event.inputs.CREATE_ANYKERNEL != 'true' && github.event.inputs.UPLOAD_TO_RELEASE != 'true' }}
+        if: ${{ success() && github.event.inputs.CREATE_ANYKERNEL != 'true'}}
         with:
           name: ${{ github.event.inputs.ANYKERNEL_ZIP_NAME }}
           path: |
             ${{ steps.workspace.outputs.kernel_folder }}/out/arch/arm64/boot/AnyKernel3/
             !${{ steps.workspace.outputs.kernel_folder }}/out/arch/arm64/boot/AnyKernel3/.git
             !${{ steps.workspace.outputs.kernel_folder }}/out/arch/arm64/boot/AnyKernel3/.github
-
-      - name: Upload to Release
-        if: ${{ github.event.inputs.UPLOAD_TO_RELEASE == 'true' }}
-        uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            ${{ steps.workspace.outputs.kernel_folder }}/out/arch/arm64/boot/${{ github.event.inputs.ANYKERNEL_ZIP_NAME }}
-          name: ${{ github.run_id }}
-          tag_name: ${{ github.run_id }}
-          body: |
-            <b>Kernel tree</b>: ${{ github.event.inputs.KERNEL_TREE }}/tree/${{ github.event.inputs.KERNEL_TREE_BRANCH }}
-            For more details: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
