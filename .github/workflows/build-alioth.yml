@@ -64,13 +64,28 @@ jobs:
           echo "KernelSU Branch": ${{ github.event.inputs.KERNELSU_SETUP_BRANCH }}
           echo "::endgroup::"
 
+      - name: Cache Clang
+        id: cache-clang
+        uses: actions/cache@v4
+        with:
+          path: clang
+          key: clang-r547379
+          restore-keys: |
+            clang-
+
+      - name: Download and Extract Clang (if not cached)
+        if: steps.cache-clang.outputs.cache-hit != 'true'
+        run: |
+          wget https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r547379.tar.gz -O clang.tar.gz
+          mkdir -p clang
+          tar -xf clang.tar.gz -C clang
+          rm clang.tar.gz
+
       - name: Initialize workspace
         run: |
-          sudo apt install flex libncurses6 -y
-          wget https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r547379.tar.gz -O clang.tar.gz
-          mkdir clang
-          tar -xf clang.tar.gz -C clang
           echo "tools_folder=$(pwd)" >> $GITHUB_OUTPUT
+
+          sudo apt install flex libncurses6 -y
 
           git clone --depth=1 ${{ github.event.inputs.KERNEL_TREE }} -b ${{ github.event.inputs.KERNEL_TREE_BRANCH }} kernel_tree
           echo "kernel_folder=$(pwd)/kernel_tree" >> $GITHUB_OUTPUT
@@ -90,7 +105,6 @@ jobs:
           make O=out vendor/alioth_defconfig PATH="${{ steps.workspace.outputs.tools_folder }}/clang/bin:$PATH"
           make O=out CC=clang -j$(nproc --all) PATH="${{ steps.workspace.outputs.tools_folder }}/clang/bin:$PATH" CROSS_COMPILE=aarch64-linux-gnu- LLVM=1 LLVM_IAS=1
         working-directory: ${{ steps.workspace.outputs.kernel_folder }}
-        id: build
 
       - name: AnyKernel3
         if: ${{ success() && github.event.inputs.CREATE_ANYKERNEL == 'true' }}
@@ -109,7 +123,6 @@ jobs:
           zip -q -r "${{ github.event.inputs.ANYKERNEL_ZIP_NAME }}" *
           mv "${{ github.event.inputs.ANYKERNEL_ZIP_NAME }}" ../
         working-directory: ${{ steps.workspace.outputs.kernel_folder }}/out/arch/arm64/boot/
-        id: anykernel
 
       - name: "Upload Image.gz"
         uses: actions/upload-artifact@v4
