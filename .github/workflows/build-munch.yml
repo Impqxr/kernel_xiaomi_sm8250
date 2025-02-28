@@ -19,7 +19,7 @@ on:
       KERNELSU_SETUP_URL:
         description: "KernelSU setup.sh URL"
         required: false
-        default: "https://raw.githubusercontent.com/rifsxd/KernelSU-Next/refs/heads/next/kernel/setup.sh"
+        default: "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/refs/heads/next/kernel/setup.sh"
       KERNELSU_SETUP_BRANCH:
         description: "KernelSU Branch"
         required: false
@@ -38,8 +38,8 @@ on:
         default: "main"
         required: false
       ANYKERNEL_ZIP_NAME:
-        description: "Uploaded ZIP name"
-        default: "N0kernel-munch.zip"
+        description: "File name (without .zip extension)"
+        default: "N0kernel-munch"
         required: false
       ANYKERNEL_HYPEROS_DTBO:
         description: "Use DTBO for HyperOS/MIUI for AnyKernel"
@@ -57,11 +57,12 @@ jobs:
         run: |
           echo "::group::Inputs"
           echo "Kernel Tree: ${{ github.event.inputs.KERNEL_TREE }}/tree/${{ github.event.inputs.KERNEL_TREE_BRANCH }}"
-          echo "Create AnyKernel: ${{ github.event.inputs.CREATE_ANYKERNEL }}"
-          echo "AnyKernel URL: ${{ github.event.inputs.ANYKERNEL_URL }}/tree/${{ github.event.inputs.ANYKERNEL_BRANCH }}"
           echo "Add KernelSU: ${{ github.event.inputs.ADD_KERNELSU }}"
           echo "KernelSU Setup URL": ${{ github.event.inputs.KERNELSU_SETUP_URL }}
           echo "KernelSU Branch": ${{ github.event.inputs.KERNELSU_SETUP_BRANCH }}
+          echo "Create AnyKernel: ${{ github.event.inputs.CREATE_ANYKERNEL }}"
+          echo "AnyKernel URL: ${{ github.event.inputs.ANYKERNEL_URL }}/tree/${{ github.event.inputs.ANYKERNEL_BRANCH }}"
+          echo "Use DTBO for HyperOS/MIUI for AnyKernel": ${{ github.event.inputs.ANYKERNEL_HYPEROS_DTBO }}
           echo "::endgroup::"
 
       - name: Cache Clang
@@ -104,24 +105,6 @@ jobs:
           make O=out CC=clang -j$(nproc --all) PATH="${{ steps.workspace.outputs.tools_folder }}/clang/bin:$PATH" CROSS_COMPILE=aarch64-linux-gnu- LLVM=1 LLVM_IAS=1
         working-directory: ${{ steps.workspace.outputs.kernel_folder }}
 
-      - name: AnyKernel3
-        if: ${{ success() && github.event.inputs.CREATE_ANYKERNEL == 'true' }}
-        run: |
-          git clone --recursive --depth=1 ${{ github.event.inputs.ANYKERNEL_URL }} -b ${{ github.event.inputs.ANYKERNEL_BRANCH }} AnyKernel3
-          if [ -e "Image.gz" ]; then
-            cp -f Image.gz AnyKernel3
-          fi
-          if [ -e "dtb.img" ]; then
-            cp -f dtb.img AnyKernel3/dtb
-          fi
-          if [ -e "dtbo.img" ] && [ ${{ github.event.inputs.ANYKERNEL_HYPEROS_DTBO }} != "true" ]; then
-            cp -f dtbo.img AnyKernel3
-          fi
-          cd AnyKernel3
-          zip -q -r "${{ github.event.inputs.ANYKERNEL_ZIP_NAME }}" *
-          mv "${{ github.event.inputs.ANYKERNEL_ZIP_NAME }}" ../
-        working-directory: ${{ steps.workspace.outputs.kernel_folder }}/out/arch/arm64/boot/
-
       - name: "Upload Image.gz"
         uses: actions/upload-artifact@v4
         with:
@@ -137,6 +120,24 @@ jobs:
         with:
           name: dtbo.img
           path: ${{ steps.workspace.outputs.kernel_folder }}/out/arch/arm64/boot/dtbo.img
+
+      - name: AnyKernel3
+        if: ${{ success() && github.event.inputs.CREATE_ANYKERNEL == 'true' }}
+        run: |
+          git clone --recursive --depth=1 ${{ github.event.inputs.ANYKERNEL_URL }} -b ${{ github.event.inputs.ANYKERNEL_BRANCH }} AnyKernel3
+          if [ -e "Image.gz" ]; then
+            cp -f Image.gz AnyKernel3
+          fi
+          if [ -e "dtb.img" ]; then
+            cp -f dtb.img AnyKernel3/dtb
+          fi
+          if [ -e "dtbo.img" ] && [ ${{ github.event.inputs.ANYKERNEL_HYPEROS_DTBO }} != "true" ]; then
+            cp -f dtbo.img AnyKernel3
+          fi
+          cd AnyKernel3
+          zip -q -r "${{ github.event.inputs.ANYKERNEL_ZIP_NAME }}.zip" *
+          mv "${{ github.event.inputs.ANYKERNEL_ZIP_NAME }}.zip" ../
+        working-directory: ${{ steps.workspace.outputs.kernel_folder }}/out/arch/arm64/boot/
       - name: "Upload AnyKernel"
         uses: actions/upload-artifact@v4
         if: ${{ success() && github.event.inputs.CREATE_ANYKERNEL == 'true'}}
