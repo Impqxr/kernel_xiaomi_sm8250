@@ -4201,11 +4201,10 @@ static inline void update_load_avg(struct cfs_rq *cfs_rq, struct sched_entity *s
 		update_tg_load_avg(cfs_rq, 0);
 
 	} else if (decayed) {
-		cfs_rq_util_change(cfs_rq, 0);
-
 		if (flags & UPDATE_TG)
 			update_tg_load_avg(cfs_rq, 0);
 	}
+	cfs_rq_util_change(cfs_rq, 0);
 }
 
 /*
@@ -8538,7 +8537,7 @@ select_task_rq_fair(struct task_struct *p, int prev_cpu, int sd_flag, int wake_f
 	if (sd_flag & SD_BALANCE_WAKE) {
 		record_wakee(p);
 
-		if (static_branch_unlikely(&sched_energy_present)) {
+                if (sched_energy_enabled()) {
 			new_cpu = find_energy_efficient_cpu(p, prev_cpu, sync, 1);
 			if (new_cpu >= 0)
 				return new_cpu;
@@ -11100,7 +11099,7 @@ static struct sched_group *find_busiest_group(struct lb_env *env)
 	if (busiest->group_type == group_misfit_task)
 		goto force_balance;
 
-	if (static_branch_unlikely(&sched_energy_present)) {
+	if (sched_energy_enabled()) {
 		struct root_domain *rd = env->dst_rq->rd;
 		int out_balance = 1;
 

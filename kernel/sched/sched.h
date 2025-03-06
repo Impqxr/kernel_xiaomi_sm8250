@@ -860,6 +860,12 @@ static inline long se_runnable(struct sched_entity *se)
 }
 #endif
 
+#ifdef CONFIG_RT_GROUP_SCHED
+#define rt_entity_is_task(rt_se) (!(rt_se)->my_q)
+#else /* CONFIG_RT_GROUP_SCHED */
+#define rt_entity_is_task(rt_se) (1)
+#endif /* CONFIG_RT_GROUP_SCHED */
+
 #ifdef CONFIG_SMP
 /*
  * XXX we want to get rid of these helpers and use the full load resolution.
@@ -2938,6 +2944,7 @@ bool uclamp_boosted(struct task_struct *p);
 # define arch_scale_freq_invariant()	false
 #endif
 
+extern struct cpumask min_cap_cpu_mask;
 #ifdef CONFIG_SMP
 static inline unsigned long cpu_util_cfs(struct rq *rq)
 {
@@ -3031,12 +3038,16 @@ unsigned long scale_irq_capacity(unsigned long util, unsigned long irq, unsigned
 
 #ifdef CONFIG_ENERGY_MODEL
 #define perf_domain_span(pd) (to_cpumask(((pd)->em_pd->cpus)))
+DECLARE_STATIC_KEY_FALSE(sched_energy_present);
+
+static inline bool sched_energy_enabled(void)
+{
+	return static_branch_unlikely(&sched_energy_present);
+}
+
 #else
 #define perf_domain_span(pd) NULL
-#endif
-
-#ifdef CONFIG_SMP
-extern struct static_key_false sched_energy_present;
+static inline bool sched_energy_enabled(void) { return false; }
 #endif
 
 enum sched_boost_policy {
