@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 
+#define SCHED_FEAT_ENFORCE_ELIGIBILITY 0
 /*
  * Using the avg_vruntime, do the right thing and preserve lag across
  * sleep+wake cycles. EEVDF placement strategy #1, #2 if disabled.
@@ -8,11 +9,7 @@
 /*
  * Give new tasks half a slice to ease into the competition.
  */
-#define SCHED_FEAT_PLACE_DEADLINE_INITIAL 1
-/*
- * Preserve relative virtual deadline on 'migration'.
- */
-#define SCHED_FEAT_PLACE_REL_DEADLINE 1
+#define SCHED_FEAT_PLACE_DEADLINE_INITIAL 0
 /*
  * Preserve relative virtual deadline on 'migration'.
  */
