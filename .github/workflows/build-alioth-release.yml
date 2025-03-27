@@ -34,7 +34,7 @@ jobs:
             ADD_KERNELSU: true
             KERNELSU_NAME: "KSUN"
             KERNELSU_SETUP_URL: "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/refs/heads/next-susfs/kernel/setup.sh"
-            KERNELSU_SETUP_BRANCH: "next-susfs"
+            KERNELSU_SETUP_BRANCH: "next-susfs-dev"
 
             ANYKERNEL_URL: "https://github.com/Impqxr/AKalioth"
             ANYKERNEL_BRANCH: "main"
