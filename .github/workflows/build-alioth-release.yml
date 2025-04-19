@@ -24,7 +24,7 @@ jobs:
 
             ANYKERNEL_URL: "https://github.com/Impqxr/AKalioth"
             ANYKERNEL_BRANCH: "main"
-            ANYKERNEL_ZIP_NAME: "N0kernel-alioth-${{ github.event.release.name }}"
+            ANYKERNEL_ZIP_NAME: "N0Kernel-alioth-${{ github.event.release.name }}"
             ANYKERNEL_HYPEROS_DTBO: false
 
           - name: "KernelSU-Next with SuSFS"
@@ -38,7 +38,7 @@ jobs:
 
             ANYKERNEL_URL: "https://github.com/Impqxr/AKalioth"
             ANYKERNEL_BRANCH: "main"
-            ANYKERNEL_ZIP_NAME: "N0kernel-alioth-${{ github.event.release.name }}"
+            ANYKERNEL_ZIP_NAME: "N0Kernel-alioth-${{ github.event.release.name }}"
             ANYKERNEL_HYPEROS_DTBO: false
 
           - name: "Rissu's KernelSU Only"
@@ -52,7 +52,7 @@ jobs:
 
             ANYKERNEL_URL: "https://github.com/Impqxr/AKalioth"
             ANYKERNEL_BRANCH: "main"
-            ANYKERNEL_ZIP_NAME: "N0kernel-alioth-${{ github.event.release.name }}"
+            ANYKERNEL_ZIP_NAME: "N0Kernel-alioth-${{ github.event.release.name }}"
             ANYKERNEL_HYPEROS_DTBO: false
 
           - name: "Rissu's KernelSU with SuSFS"
@@ -66,7 +66,7 @@ jobs:
 
             ANYKERNEL_URL: "https://github.com/Impqxr/AKalioth"
             ANYKERNEL_BRANCH: "main"
-            ANYKERNEL_ZIP_NAME: "N0kernel-alioth-${{ github.event.release.name }}"
+            ANYKERNEL_ZIP_NAME: "N0Kernel-alioth-${{ github.event.release.name }}"
             ANYKERNEL_HYPEROS_DTBO: false
     steps:
       - name: Display Inputs
