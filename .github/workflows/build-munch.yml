@@ -41,10 +41,6 @@ on:
         description: "File name (without .zip extension)"
         default: "N0kernel-munch"
         required: false
-      ANYKERNEL_HYPEROS_DTBO:
-        description: "Use DTBO for HyperOS/MIUI for AnyKernel"
-        type: boolean
-        default: false
 
 jobs:
   build:
@@ -62,7 +58,6 @@ jobs:
           echo "KernelSU Branch": ${{ github.event.inputs.KERNELSU_SETUP_BRANCH }}
           echo "Create AnyKernel: ${{ github.event.inputs.CREATE_ANYKERNEL }}"
           echo "AnyKernel URL: ${{ github.event.inputs.ANYKERNEL_URL }}/tree/${{ github.event.inputs.ANYKERNEL_BRANCH }}"
-          echo "Use DTBO for HyperOS/MIUI for AnyKernel": ${{ github.event.inputs.ANYKERNEL_HYPEROS_DTBO }}
           echo "::endgroup::"
 
       - name: Cache Clang
@@ -131,7 +126,7 @@ jobs:
           if [ -e "dtb.img" ]; then
             cp -f dtb.img AnyKernel3/dtb
           fi
-          if [ -e "dtbo.img" ] && [ ${{ github.event.inputs.ANYKERNEL_HYPEROS_DTBO }} != "true" ]; then
+          if [ -e "dtbo.img" ]; then
             cp -f dtbo.img AnyKernel3
           fi
           cd AnyKernel3
