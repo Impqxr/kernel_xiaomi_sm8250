@@ -42,6 +42,11 @@ on:
         default: "N0Kernel-alioth"
         required: false
 
+      CLANG_DOWNLOAD_URL:
+        description: "Clang download url"
+        default: "https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r547379.tar.gz"
+        required: true
+
 jobs:
   build:
     if: github.event.repository.owner.id == github.event.sender.id
@@ -65,24 +70,28 @@ jobs:
         uses: actions/cache@v4
         with:
           path: clang
-          key: clang-r547379
+          key: clang-ci
           restore-keys: |
             clang-
 
       - name: Download and Extract Clang (if not cached)
         if: steps.cache-clang.outputs.cache-hit != 'true'
         run: |
-          wget https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r547379.tar.gz -O clang.tar.gz
+          wget "${{ github.event.inputs.CLANG_DOWNLOAD_URL }}" -O clang.tar.gz
           mkdir -p clang
           tar -xf clang.tar.gz -C clang
+
+          cd clang
+          if [ -d clang-* ]; then
+            mv clang-*/* .
+          fi
+          cd ..
+
           rm clang.tar.gz
 
       - name: Initialize workspace
         run: |
           echo "tools_folder=$(pwd)" >> $GITHUB_OUTPUT
-
-          sudo apt install flex libncurses6 -y
-
           git clone --depth=1 ${{ github.event.inputs.KERNEL_TREE }} -b ${{ github.event.inputs.KERNEL_TREE_BRANCH }} kernel_tree
           echo "kernel_folder=$(pwd)/kernel_tree" >> $GITHUB_OUTPUT
         id: workspace
@@ -91,8 +100,8 @@ jobs:
         run: |
           export ARCH=arm64
           export SUBARCH=ARM64
-          export KBUILD_BUILD_USER="never"
-          export KBUILD_BUILD_HOST="worry"
+          export KBUILD_BUILD_USER="${{ github.actor }}"
+          export KBUILD_BUILD_HOST="github"
 
           if [ ${{ github.event.inputs.ADD_KERNELSU }} == 'true' ]; then
             curl -LSs "${{ github.event.inputs.KERNELSU_SETUP_URL }}" | bash -s ${{ github.event.inputs.KERNELSU_SETUP_BRANCH }}
