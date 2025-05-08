@@ -26,6 +26,7 @@ jobs:
             ANYKERNEL_BRANCH: "main"
             ANYKERNEL_ZIP_NAME: "N0Kernel-alioth-${{ github.event.release.name }}"
             ANYKERNEL_HYPEROS_DTBO: false
+            CLANG_DOWNLOAD_LINK: "https://github.com/Impqxr/aosp_clang_ci/releases/download/13289611/clang-13289611-linux-x86.tar.xz"
 
           - name: "KernelSU-Next with SuSFS"
             KERNEL_TREE: "https://github.com/Impqxr/kernel_xiaomi_sm8250"
@@ -40,6 +41,7 @@ jobs:
             ANYKERNEL_BRANCH: "main"
             ANYKERNEL_ZIP_NAME: "N0Kernel-alioth-${{ github.event.release.name }}"
             ANYKERNEL_HYPEROS_DTBO: false
+            CLANG_DOWNLOAD_LINK: "https://github.com/Impqxr/aosp_clang_ci/releases/download/13289611/clang-13289611-linux-x86.tar.xz"
 
           - name: "Rissu's KernelSU Only"
             KERNEL_TREE: "https://github.com/Impqxr/kernel_xiaomi_sm8250"
@@ -54,6 +56,7 @@ jobs:
             ANYKERNEL_BRANCH: "main"
             ANYKERNEL_ZIP_NAME: "N0Kernel-alioth-${{ github.event.release.name }}"
             ANYKERNEL_HYPEROS_DTBO: false
+            CLANG_DOWNLOAD_LINK: "https://github.com/Impqxr/aosp_clang_ci/releases/download/13289611/clang-13289611-linux-x86.tar.xz"
 
           - name: "Rissu's KernelSU with SuSFS"
             KERNEL_TREE: "https://github.com/Impqxr/kernel_xiaomi_sm8250"
@@ -62,12 +65,13 @@ jobs:
             ADD_KERNELSU: true
             KERNELSU_NAME: "RKSU"
             KERNELSU_SETUP_URL: "https://raw.githubusercontent.com/rsuntk/KernelSU/refs/heads/susfs-v1.5.5/kernel/setup.sh"
-            KERNELSU_SETUP_BRANCH: "susfs-v1.5.5"
+            KERNELSU_SETUP_BRANCH: "susfs-v1.5.7"
 
             ANYKERNEL_URL: "https://github.com/Impqxr/AKalioth"
             ANYKERNEL_BRANCH: "main"
             ANYKERNEL_ZIP_NAME: "N0Kernel-alioth-${{ github.event.release.name }}"
             ANYKERNEL_HYPEROS_DTBO: false
+            CLANG_DOWNLOAD_LINK: "https://github.com/Impqxr/aosp_clang_ci/releases/download/13289611/clang-13289611-linux-x86.tar.xz"
     steps:
       - name: Display Inputs
         run: |
@@ -86,16 +90,23 @@ jobs:
         uses: actions/cache@v4
         with:
           path: clang
-          key: clang-r547379
+          key: clang-ci
           restore-keys: |
             clang-
 
       - name: Download and Extract Clang (if not cached)
         if: steps.cache-clang.outputs.cache-hit != 'true'
         run: |
-          wget https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r547379.tar.gz -O clang.tar.gz
+          wget "${{ matrix.config.CLANG_DOWNLOAD_URL }}" -O clang.tar.gz
           mkdir -p clang
           tar -xf clang.tar.gz -C clang
+
+          cd clang
+          if [ -d clang-* ]; then
+            mv clang-*/* .
+          fi
+
+          cd ..
           rm clang.tar.gz
 
       - name: Initialize workspace
