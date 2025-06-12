@@ -64,8 +64,8 @@ jobs:
 
             ADD_KERNELSU: true
             KERNELSU_NAME: "RKSU"
-            KERNELSU_SETUP_URL: "https://raw.githubusercontent.com/rsuntk/KernelSU/refs/heads/susfs-v1.5.5/kernel/setup.sh"
-            KERNELSU_SETUP_BRANCH: "susfs-v1.5.7"
+            KERNELSU_SETUP_URL: "https://raw.githubusercontent.com/rsuntk/KernelSU/refs/heads/susfs-main/kernel/setup.sh"
+            KERNELSU_SETUP_BRANCH: "susfs-main"
 
             ANYKERNEL_URL: "https://github.com/Impqxr/AKalioth"
             ANYKERNEL_BRANCH: "main"
