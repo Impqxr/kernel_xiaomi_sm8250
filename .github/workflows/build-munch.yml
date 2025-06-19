@@ -87,7 +87,7 @@ jobs:
       - name: Initialize workspace
         run: |
           echo "tools_folder=$(pwd)" >> $GITHUB_OUTPUT
-          it clone --depth=1 "${{ github.event.inputs.KERNEL_TREE }}" -b "${{ github.event.inputs.KERNEL_TREE_BRANCH }}" kernel_tree
+          git clone --depth=1 "${{ github.event.inputs.KERNEL_TREE }}" -b "${{ github.event.inputs.KERNEL_TREE_BRANCH }}" kernel_tree
           echo "kernel_folder=$(pwd)/kernel_tree" >> $GITHUB_OUTPUT
         id: workspace
 
