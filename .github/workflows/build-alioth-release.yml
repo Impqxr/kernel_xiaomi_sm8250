@@ -1,4 +1,4 @@
-name: Kernel Build Alioth Releases
+name: Automatic kernel building for Alioth on newly created release
 
 on:
   release:
@@ -17,72 +17,67 @@ jobs:
             KERNEL_TREE: "https://github.com/Impqxr/kernel_xiaomi_sm8250"
             KERNEL_TREE_BRANCH: "base"
 
-            ADD_KERNELSU: true
             KERNELSU_NAME: "KSUN"
             KERNELSU_SETUP_URL: "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/refs/heads/next/kernel/setup.sh"
             KERNELSU_SETUP_BRANCH: "next"
+            KERNELSU_PATCHES: ""
 
             ANYKERNEL_URL: "https://github.com/Impqxr/AKalioth"
             ANYKERNEL_BRANCH: "main"
             ANYKERNEL_ZIP_NAME: "N0Kernel-alioth-${{ github.event.release.tag_name }}"
-            ANYKERNEL_HYPEROS_DTBO: false
             CLANG_DOWNLOAD_LINK: "https://github.com/Impqxr/aosp_clang_ci/releases/download/13289611/clang-13289611-linux-x86.tar.xz"
 
           - name: "KernelSU-Next with SuSFS"
             KERNEL_TREE: "https://github.com/Impqxr/kernel_xiaomi_sm8250"
             KERNEL_TREE_BRANCH: "susfs-v1.5.5"
 
-            ADD_KERNELSU: true
             KERNELSU_NAME: "KSUN"
-            KERNELSU_SETUP_URL: "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/refs/heads/next-susfs-dev/kernel/setup.sh"
-            KERNELSU_SETUP_BRANCH: "next-susfs-dev"
+            KERNELSU_SETUP_URL: "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/refs/heads/base/kernel/setup.sh"
+            KERNELSU_SETUP_BRANCH: "base"
+            KERNELSU_PATCHES: "https://raw.githubusercontent.com/WildKernels/kernel_patches/refs/heads/main/next/0001-kernel-implement-susfs-v1.5.5-v1.5.7-KSUN-v1.0.8.patch" # TODO: move it to my repo
 
             ANYKERNEL_URL: "https://github.com/Impqxr/AKalioth"
             ANYKERNEL_BRANCH: "main"
             ANYKERNEL_ZIP_NAME: "N0Kernel-alioth-${{ github.event.release.tag_name }}"
-            ANYKERNEL_HYPEROS_DTBO: false
             CLANG_DOWNLOAD_LINK: "https://github.com/Impqxr/aosp_clang_ci/releases/download/13289611/clang-13289611-linux-x86.tar.xz"
 
           - name: "Rissu's KernelSU Only"
             KERNEL_TREE: "https://github.com/Impqxr/kernel_xiaomi_sm8250"
             KERNEL_TREE_BRANCH: "base"
 
-            ADD_KERNELSU: true
             KERNELSU_NAME: "RKSU"
             KERNELSU_SETUP_URL: "https://raw.githubusercontent.com/rsuntk/KernelSU/refs/heads/main/kernel/setup.sh"
             KERNELSU_SETUP_BRANCH: "main"
+            KERNELSU_PATCHES: ""
 
             ANYKERNEL_URL: "https://github.com/Impqxr/AKalioth"
             ANYKERNEL_BRANCH: "main"
             ANYKERNEL_ZIP_NAME: "N0Kernel-alioth-${{ github.event.release.tag_name }}"
-            ANYKERNEL_HYPEROS_DTBO: false
             CLANG_DOWNLOAD_LINK: "https://github.com/Impqxr/aosp_clang_ci/releases/download/13289611/clang-13289611-linux-x86.tar.xz"
 
           - name: "Rissu's KernelSU with SuSFS"
             KERNEL_TREE: "https://github.com/Impqxr/kernel_xiaomi_sm8250"
             KERNEL_TREE_BRANCH: "susfs-v1.5.5"
 
-            ADD_KERNELSU: true
             KERNELSU_NAME: "RKSU"
             KERNELSU_SETUP_URL: "https://raw.githubusercontent.com/rsuntk/KernelSU/refs/heads/susfs-main/kernel/setup.sh"
             KERNELSU_SETUP_BRANCH: "susfs-main"
+            KERNELSU_PATCHES: ""
 
             ANYKERNEL_URL: "https://github.com/Impqxr/AKalioth"
             ANYKERNEL_BRANCH: "main"
             ANYKERNEL_ZIP_NAME: "N0Kernel-alioth-${{ github.event.release.tag_name }}"
-            ANYKERNEL_HYPEROS_DTBO: false
             CLANG_DOWNLOAD_LINK: "https://github.com/Impqxr/aosp_clang_ci/releases/download/13289611/clang-13289611-linux-x86.tar.xz"
     steps:
       - name: Display Inputs
         run: |
           echo "::group::Inputs"
           echo "Kernel Tree: ${{ matrix.config.KERNEL_TREE }}/tree/${{ matrix.config.KERNEL_TREE_BRANCH }}"
-          echo "Add KernelSU: ${{ matrix.config.ADD_KERNELSU }}"
           echo "KernelSU Setup URL": ${{ matrix.config.KERNELSU_SETUP_URL }}
           echo "KernelSU Branch": ${{ matrix.config.KERNELSU_SETUP_BRANCH }}
           echo "KernelSU Name": ${{ matrix.config.KERNELSU_NAME }}
+          echo "KernelSU Patches": ${{ matrix.config.KERNELSU_PATCHES }}
           echo "AnyKernel URL: ${{ matrix.config.ANYKERNEL_URL }}/tree/${{ matrix.config.ANYKERNEL_BRANCH }}"
-          echo "Use DTBO for HyperOS/MIUI for AnyKernel": ${{ matrix.config.ANYKERNEL_HYPEROS_DTBO }}
           echo "::endgroup::"
 
       - name: Cache Clang
@@ -101,6 +96,7 @@ jobs:
           mkdir -p clang
           tar -xf clang.tar.gz -C clang
 
+          # extract toolchain from the parent directory (if exists)
           cd clang
           if [ -d clang-* ]; then
             mv clang-*/* .
@@ -112,9 +108,6 @@ jobs:
       - name: Initialize workspace
         run: |
           echo "tools_folder=$(pwd)" >> "$GITHUB_OUTPUT"
-
-          sudo apt install flex libncurses6 -y
-
           git clone --depth=1 ${{ matrix.config.KERNEL_TREE }} -b ${{ matrix.config.KERNEL_TREE_BRANCH }} kernel_tree
           echo "kernel_folder=$(pwd)/kernel_tree" >> "$GITHUB_OUTPUT"
         id: workspace
@@ -123,11 +116,21 @@ jobs:
         run: |
           export ARCH=arm64
           export SUBARCH=ARM64
-          export KBUILD_BUILD_USER="never"
-          export KBUILD_BUILD_HOST="worry"
+          export KBUILD_BUILD_USER="${{ github.actor }}"
+          export KBUILD_BUILD_HOST="github.com"
 
-          if [ "${{ matrix.config.ADD_KERNELSU }}" == 'true' ]; then
+          if [[ -n "${{ matrix.config.KERNELSU_SETUP_URL }}" && -n "${{ matrix.config.KERNELSU_SETUP_BRANCH }}" ]]; then
             curl -LSs "${{ matrix.config.KERNELSU_SETUP_URL }}" | bash -s ${{ matrix.config.KERNELSU_SETUP_BRANCH }}
+            if [ -n "${{ matrix.config.KERNELSU_PATCHES }}" ]; then
+              cd Kernel*
+              echo "${{ matrix.config.KERNELSU_PATCHES }}" | tr ',' '\n' | while read -r PATCH; do
+                TRIMMED=$(echo "$PATCH" | xargs)
+                TEMP_PATCH_FILE="/tmp/downloaded_patch_$(date +%s%N).patch"
+                curl -fsSL "$TRIMMED" -o "$TEMP_PATCH_FILE"
+                patch -p1 < "$TEMP_PATCH_FILE"
+              done
+              cd ..
+            fi
           fi
 
           make O=out vendor/alioth_defconfig PATH="${{ steps.workspace.outputs.tools_folder }}/clang/bin:$PATH"
