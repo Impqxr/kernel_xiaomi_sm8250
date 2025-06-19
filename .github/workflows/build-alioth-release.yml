@@ -191,7 +191,7 @@ jobs:
           if [ -e "dtb.img" ]; then
             cp -f dtb.img AnyKernel3/dtb
           fi
-          if [ -e "dtbo.img" ] && [ ${{ matrix.config.ANYKERNEL_HYPEROS_DTBO }} != "true" ]; then
+          if [ -e "dtbo.img" ]; then
             cp -f dtbo.img AnyKernel3
           fi
           cd AnyKernel3
