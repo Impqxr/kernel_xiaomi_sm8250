@@ -1,4 +1,4 @@
-name: Kernel Build Munch
+name: Kernel Build (Munch)
 
 on:
   workflow_dispatch:
@@ -12,25 +12,21 @@ on:
         required: true
         default: "base-munch"
 
-      ADD_KERNELSU:
-        description: "Add KernelSU"
-        type: boolean
-        default: true
       KERNELSU_SETUP_URL:
-        description: "KernelSU setup.sh URL"
+        description: "KernelSU setup.sh URL (empty it to disable)"
         required: false
         default: "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/refs/heads/next/kernel/setup.sh"
       KERNELSU_SETUP_BRANCH:
         description: "KernelSU Branch"
         required: false
         default: "next"
+      KERNELSU_PATCHES:
+        description: "Patches for KernelSU. Urls leading to .patch file which are split by comma"
+        required: false
+        default: ""
 
-      CREATE_ANYKERNEL:
-        description: "Create AnyKernel"
-        type: boolean
-        default: true
       ANYKERNEL_URL:
-        description: "AnyKernel URL"
+        description: "AnyKernel URL (empty it to disable)"
         default: "https://github.com/Impqxr/AKmunch"
         required: false
       ANYKERNEL_BRANCH:
@@ -44,7 +40,7 @@ on:
 
       CLANG_DOWNLOAD_URL:
         description: "Clang download url"
-        default: "https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r547379.tar.gz"
+        default: "https://github.com/Impqxr/aosp_clang_ci/releases/download/13289611/clang-13289611-linux-x86.tar.xz"
         required: true
 
 jobs:
@@ -58,10 +54,8 @@ jobs:
         run: |
           echo "::group::Inputs"
           echo "Kernel Tree: ${{ github.event.inputs.KERNEL_TREE }}/tree/${{ github.event.inputs.KERNEL_TREE_BRANCH }}"
-          echo "Add KernelSU: ${{ github.event.inputs.ADD_KERNELSU }}"
           echo "KernelSU Setup URL": ${{ github.event.inputs.KERNELSU_SETUP_URL }}
           echo "KernelSU Branch": ${{ github.event.inputs.KERNELSU_SETUP_BRANCH }}
-          echo "Create AnyKernel: ${{ github.event.inputs.CREATE_ANYKERNEL }}"
           echo "AnyKernel URL: ${{ github.event.inputs.ANYKERNEL_URL }}/tree/${{ github.event.inputs.ANYKERNEL_BRANCH }}"
           echo "::endgroup::"
 
@@ -81,6 +75,7 @@ jobs:
           mkdir -p clang
           tar -xf clang.tar.gz -C clang
 
+          # extract toolchain from the parent directory (if exists)
           cd clang
           if [ -d clang-* ]; then
             mv clang-*/* .
@@ -92,7 +87,7 @@ jobs:
       - name: Initialize workspace
         run: |
           echo "tools_folder=$(pwd)" >> $GITHUB_OUTPUT
-          git clone --depth=1 ${{ github.event.inputs.KERNEL_TREE }} -b ${{ github.event.inputs.KERNEL_TREE_BRANCH }} kernel_tree
+          it clone --depth=1 "${{ github.event.inputs.KERNEL_TREE }}" -b "${{ github.event.inputs.KERNEL_TREE_BRANCH }}" kernel_tree
           echo "kernel_folder=$(pwd)/kernel_tree" >> $GITHUB_OUTPUT
         id: workspace
 
@@ -101,10 +96,20 @@ jobs:
           export ARCH=arm64
           export SUBARCH=ARM64
           export KBUILD_BUILD_USER="${{ github.actor }}"
-          export KBUILD_BUILD_HOST="github"
+          export KBUILD_BUILD_HOST="github.com"
 
-          if [ ${{ github.event.inputs.ADD_KERNELSU }} == 'true' ]; then
+          if [[ -n "${{ github.event.inputs.KERNELSU_SETUP_URL }}" && -n "${{ github.event.inputs.KERNELSU_SETUP_BRANCH }}" ]]; then
             curl -LSs "${{ github.event.inputs.KERNELSU_SETUP_URL }}" | bash -s ${{ github.event.inputs.KERNELSU_SETUP_BRANCH }}
+            if [ -n "${{ github.event.inputs.KERNELSU_PATCHES }}" ]; then
+              cd Kernel*
+              echo "${{ github.event.inputs.KERNELSU_PATCHES }}" | tr ',' '\n' | while read -r PATCH; do
+                TRIMMED=$(echo "$PATCH" | xargs)
+                TEMP_PATCH_FILE="/tmp/downloaded_patch_$(date +%s%N).patch"
+                curl -fsSL "$TRIMMED" -o "$TEMP_PATCH_FILE"
+                patch -p1 < "$TEMP_PATCH_FILE"
+              done
+              cd ..
+            fi
           fi
 
           make O=out vendor/munch_defconfig PATH="${{ steps.workspace.outputs.tools_folder }}/clang/bin:$PATH"
@@ -128,7 +133,7 @@ jobs:
           path: ${{ steps.workspace.outputs.kernel_folder }}/out/arch/arm64/boot/dtbo.img
 
       - name: AnyKernel3
-        if: ${{ success() && github.event.inputs.CREATE_ANYKERNEL == 'true' }}
+        if: ${{ success() && github.event.inputs.ANYKERNEL_URL != '' && github.event.inputs.ANYKERNEL_BRANCH != '' && github.event.inputs.ANYKERNEL_ZIP_NAME != '' }}
         run: |
           git clone --recursive --depth=1 ${{ github.event.inputs.ANYKERNEL_URL }} -b ${{ github.event.inputs.ANYKERNEL_BRANCH }} AnyKernel3
           if [ -e "Image.gz" ]; then
@@ -146,7 +151,7 @@ jobs:
         working-directory: ${{ steps.workspace.outputs.kernel_folder }}/out/arch/arm64/boot/
       - name: "Upload AnyKernel"
         uses: actions/upload-artifact@v4
-        if: ${{ success() && github.event.inputs.CREATE_ANYKERNEL == 'true'}}
+        if: ${{ success() && github.event.inputs.ANYKERNEL_URL != '' && github.event.inputs.ANYKERNEL_BRANCH != '' && github.event.inputs.ANYKERNEL_ZIP_NAME != '' }}
         with:
           name: ${{ github.event.inputs.ANYKERNEL_ZIP_NAME }}
           path: |
