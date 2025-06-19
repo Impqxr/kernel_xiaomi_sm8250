@@ -1,4 +1,4 @@
-name: Kernel Build Alioth
+name: Kernel Build (Alioth)
 
 on:
   workflow_dispatch:
@@ -56,6 +56,7 @@ jobs:
           echo "Kernel Tree: ${{ github.event.inputs.KERNEL_TREE }}/tree/${{ github.event.inputs.KERNEL_TREE_BRANCH }}"
           echo "KernelSU Setup URL": ${{ github.event.inputs.KERNELSU_SETUP_URL }}
           echo "KernelSU Branch": ${{ github.event.inputs.KERNELSU_SETUP_BRANCH }}
+          echo "KernelSU Patches": ${{ github.event.inputs.KERNELSU_PATCHES }}
           echo "AnyKernel URL: ${{ github.event.inputs.ANYKERNEL_URL }}/tree/${{ github.event.inputs.ANYKERNEL_BRANCH }}"
           echo "::endgroup::"
 
@@ -99,7 +100,6 @@ jobs:
           export KBUILD_BUILD_HOST="github.com"
 
           if [[ -n "${{ github.event.inputs.KERNELSU_SETUP_URL }}" && -n "${{ github.event.inputs.KERNELSU_SETUP_BRANCH }}" ]]; then
-            echo "KernelSU will be used during build"
             curl -LSs "${{ github.event.inputs.KERNELSU_SETUP_URL }}" | bash -s ${{ github.event.inputs.KERNELSU_SETUP_BRANCH }}
             if [ -n "${{ github.event.inputs.KERNELSU_PATCHES }}" ]; then
               cd Kernel*
