@@ -349,17 +349,30 @@ unsigned long schedutil_cpu_util(int cpu, unsigned long util_cfs,
 	return min(scale, util);
 }
 
-static __always_inline
-unsigned long apply_dvfs_headroom(int cpu, unsigned long util)
+static inline unsigned long apply_dvfs_headroom(unsigned long util, int cpu)
 {
-	unsigned long headroom;
+    	unsigned long capacity = capacity_orig_of(cpu);
+    	unsigned long delta, headroom, min_util;
 
-	if (cpumask_test_cpu(cpu, cpu_lp_mask))
-		headroom = util + (util >> 1);
-	else
-		headroom = util + (util >> 2);
+    	if (util >= capacity)
+        	return util;
+        /*
+         * Quadratic taper the boosting at the top end as these are expensive
+         * and we don't need that much of a big headroom as we approach max
+         * capacity
+         */
+	delta = capacity - util;
+	headroom = (delta * delta) / (4 * capacity);
 
-	return headroom;
+	/* 10% of capacity threshold */
+    	min_util = capacity / 10;
+
+    	/* Suppress boosting below the threshold */
+    	if (util < min_util) {
+        	headroom = (headroom * util * util) / (min_util * min_util);
+    	}
+
+    	return util + headroom;
 }
 
 unsigned long sugov_effective_cpu_perf(int cpu, unsigned long actual,
@@ -367,7 +380,7 @@ unsigned long sugov_effective_cpu_perf(int cpu, unsigned long actual,
 				 unsigned long max)
 {
 	/* Add dvfs headroom to actual utilization */
-	actual = apply_dvfs_headroom(cpu, actual);
+	actual = apply_dvfs_headroom(actual, cpu);
 	/* Actually we don't need to target the max performance */
 	if (actual < max)
 		max = actual;
