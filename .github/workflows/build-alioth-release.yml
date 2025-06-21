@@ -122,7 +122,8 @@ jobs:
           if [[ -n "${{ matrix.config.KERNELSU_SETUP_URL }}" && -n "${{ matrix.config.KERNELSU_SETUP_BRANCH }}" ]]; then
             curl -LSs "${{ matrix.config.KERNELSU_SETUP_URL }}" | bash -s ${{ matrix.config.KERNELSU_SETUP_BRANCH }}
             if [ -n "${{ matrix.config.KERNELSU_PATCHES }}" ]; then
-              cd Kernel*
+              KERNELSU_DIR=(KernelSU*)
+              cd "${KERNELSU_DIR[0]}"
               echo "${{ matrix.config.KERNELSU_PATCHES }}" | tr ',' '\n' | while read -r PATCH; do
                 TRIMMED=$(echo "$PATCH" | xargs)
                 TEMP_PATCH_FILE="/tmp/downloaded_patch_$(date +%s%N).patch"
