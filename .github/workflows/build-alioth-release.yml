@@ -68,6 +68,19 @@ jobs:
             ANYKERNEL_BRANCH: "main"
             ANYKERNEL_ZIP_NAME: "N0Kernel-alioth-${{ github.event.release.tag_name }}"
             CLANG_DOWNLOAD_URL: "https://github.com/Impqxr/aosp_clang_ci/releases/download/13289611/clang-13289611-linux-x86.tar.xz"
+          - name: "No KSU"
+            KERNEL_TREE: "https://github.com/Impqxr/kernel_xiaomi_sm8250"
+            KERNEL_TREE_BRANCH: "base"
+
+            KERNELSU_NAME: ""
+            KERNELSU_SETUP_URL: ""
+            KERNELSU_SETUP_BRANCH: ""
+            KERNELSU_PATCHES: ""
+
+            ANYKERNEL_URL: "https://github.com/Impqxr/AKalioth"
+            ANYKERNEL_BRANCH: "main"
+            ANYKERNEL_ZIP_NAME: "N0Kernel-alioth-${{ github.event.release.tag_name }}"
+            CLANG_DOWNLOAD_URL: "https://github.com/Impqxr/aosp_clang_ci/releases/download/13289611/clang-13289611-linux-x86.tar.xz"
     steps:
       - name: Display Inputs
         run: |
