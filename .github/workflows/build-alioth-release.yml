@@ -18,7 +18,7 @@ jobs:
             KERNEL_TREE_BRANCH: "base"
 
             KERNELSU_NAME: "KSUN"
-            KERNELSU_SETUP_URL: "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/refs/heads/next/kernel/setup.sh"
+            KERNELSU_SETUP_URL: "https://raw.githubusercontent.com/Impqxr/KernelSU-Next/refs/heads/next/kernel/setup.sh"
             KERNELSU_SETUP_BRANCH: "next"
             KERNELSU_PATCHES: ""
 
@@ -32,9 +32,9 @@ jobs:
             KERNEL_TREE_BRANCH: "susfs-v1.5.5"
 
             KERNELSU_NAME: "KSUN"
-            KERNELSU_SETUP_URL: "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/refs/heads/next/kernel/setup.sh"
-            KERNELSU_SETUP_BRANCH: "next"
-            KERNELSU_PATCHES: "https://raw.githubusercontent.com/WildKernels/kernel_patches/refs/heads/main/next/0001-kernel-implement-susfs-v1.5.5-v1.5.7-KSUN-v1.0.8.patch" # TODO: move it to my repo
+            KERNELSU_SETUP_URL: "https://raw.githubusercontent.com/Impqxr/KernelSU-Next/refs/heads/next/kernel/setup.sh"
+            KERNELSU_SETUP_BRANCH: "next-susfs"
+            KERNELSU_PATCHES: ""
 
             ANYKERNEL_URL: "https://github.com/Impqxr/AKalioth"
             ANYKERNEL_BRANCH: "main"
