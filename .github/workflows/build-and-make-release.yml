@@ -89,7 +89,7 @@ jobs:
             KERNEL_TREE_BRANCH: "susfs-v1.5.5"
             KERNELSU_NAME: "RKSU"
             KERNELSU_SETUP_URL: "https://raw.githubusercontent.com/rsuntk/KernelSU/refs/heads/main/kernel/setup.sh"
-            KERNELSU_SETUP_BRANCH: "susfs-main"
+            KERNELSU_SETUP_BRANCH: "susfs-legacy"
             KERNELSU_PATCHES: ""
 
           - name: "No KSU (alioth)"
@@ -130,7 +130,7 @@ jobs:
             KERNEL_TREE_BRANCH: "susfs-v1.5.5-munch"
             KERNELSU_SETUP_URL: "https://raw.githubusercontent.com/rsuntk/KernelSU/refs/heads/main/kernel/setup.sh"
             KERNELSU_NAME: "RKSU"
-            KERNELSU_SETUP_BRANCH: "susfs-main"
+            KERNELSU_SETUP_BRANCH: "susfs-legacy"
             KERNELSU_PATCHES: ""
 
           - name: "No KSU (munch)"
@@ -171,7 +171,7 @@ jobs:
             KERNEL_TREE_BRANCH: "susfs-v1.5.5"
             KERNELSU_NAME: "RKSU"
             KERNELSU_SETUP_URL: "https://raw.githubusercontent.com/rsuntk/KernelSU/refs/heads/main/kernel/setup.sh"
-            KERNELSU_SETUP_BRANCH: "susfs-main"
+            KERNELSU_SETUP_BRANCH: "susfs-legacy"
             KERNELSU_PATCHES: ""
 
           - name: "No KSU (apollo)"
