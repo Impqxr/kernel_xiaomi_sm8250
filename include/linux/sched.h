@@ -508,7 +508,15 @@ struct sched_entity {
 	u64				sum_exec_runtime;
 	u64				prev_sum_exec_runtime;
 	u64				vruntime;
-	s64				vlag;
+	union {
+		/*
+		 * When !@on_rq this field is vlag.
+		 * When cfs_rq->curr == se (which implies @on_rq)
+		 * this field is vprot. See protect_slice().
+		 */
+		s64                     vlag;
+		u64                     vprot;
+	};
 	u64				slice;
 
 	u64				nr_migrations;
@@ -889,6 +897,13 @@ struct task_struct {
 	int				nr_cpus_allowed;
 	cpumask_t			cpus_allowed;
 	cpumask_t			cpus_requested;
+	cpumask_t			*user_cpus_ptr;
+	cpumask_t			cpus_mask;
+	void				*migration_pending;
+#if defined(CONFIG_SMP) && defined(CONFIG_PREEMPT_RT)
+	unsigned short			migration_disabled;
+#endif
+	unsigned short			migration_flags;
 
 #ifdef CONFIG_PREEMPT_RCU
 	int				rcu_read_lock_nesting;
@@ -1796,6 +1811,11 @@ extern int task_can_attach(struct task_struct *p, const struct cpumask *cs_cpus_
 #ifdef CONFIG_SMP
 extern void do_set_cpus_allowed(struct task_struct *p, const struct cpumask *new_mask);
 extern int set_cpus_allowed_ptr(struct task_struct *p, const struct cpumask *new_mask);
+extern int dup_user_cpus_ptr(struct task_struct *dst, struct task_struct *src, int node);
+extern void release_user_cpus_ptr(struct task_struct *p);
+extern int dl_task_check_affinity(struct task_struct *p, const struct cpumask *mask);
+extern void force_compatible_cpus_allowed_ptr(struct task_struct *p);
+extern void relax_compatible_cpus_allowed_ptr(struct task_struct *p);
 #else
 static inline void do_set_cpus_allowed(struct task_struct *p, const struct cpumask *new_mask)
 {
@@ -1804,6 +1824,21 @@ static inline int set_cpus_allowed_ptr(struct task_struct *p, const struct cpuma
 {
 	if (!cpumask_test_cpu(0, new_mask))
 		return -EINVAL;
+	return 0;
+}
+static inline int dup_user_cpus_ptr(struct task_struct *dst, struct task_struct *src, int node)
+{
+	if (src->user_cpus_ptr)
+		return -EINVAL;
+	return 0;
+}
+static inline void release_user_cpus_ptr(struct task_struct *p)
+{
+	WARN_ON(p->user_cpus_ptr);
+}
+
+static inline int dl_task_check_affinity(struct task_struct *p, const struct cpumask *mask)
+{
 	return 0;
 }
 #endif

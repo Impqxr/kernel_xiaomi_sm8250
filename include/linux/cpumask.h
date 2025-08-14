@@ -10,6 +10,7 @@
 #include <linux/kernel.h>
 #include <linux/threads.h>
 #include <linux/bitmap.h>
+#include <linux/atomic.h>
 #include <linux/bug.h>
 
 /* Don't assign or return these: may not be this big! */
@@ -95,33 +96,17 @@ extern struct cpumask __cpu_possible_mask;
 extern struct cpumask __cpu_online_mask;
 extern struct cpumask __cpu_present_mask;
 extern struct cpumask __cpu_active_mask;
+extern struct cpumask __cpu_dying_mask;
 #define cpu_possible_mask ((const struct cpumask *)&__cpu_possible_mask)
 #define cpu_online_mask   ((const struct cpumask *)&__cpu_online_mask)
 #define cpu_present_mask  ((const struct cpumask *)&__cpu_present_mask)
 #define cpu_active_mask   ((const struct cpumask *)&__cpu_active_mask)
+#define cpu_dying_mask    ((const struct cpumask *)&__cpu_dying_mask)
 extern const struct cpumask *const cpu_lp_mask;
 extern const struct cpumask *const cpu_perf_mask;
 extern const struct cpumask *const cpu_prime_mask;
 
-#if NR_CPUS > 1
-#define num_online_cpus()	cpumask_weight(cpu_online_mask)
-#define num_possible_cpus()	cpumask_weight(cpu_possible_mask)
-#define num_present_cpus()	cpumask_weight(cpu_present_mask)
-#define num_active_cpus()	cpumask_weight(cpu_active_mask)
-#define cpu_online(cpu)		cpumask_test_cpu((cpu), cpu_online_mask)
-#define cpu_possible(cpu)	cpumask_test_cpu((cpu), cpu_possible_mask)
-#define cpu_present(cpu)	cpumask_test_cpu((cpu), cpu_present_mask)
-#define cpu_active(cpu)		cpumask_test_cpu((cpu), cpu_active_mask)
-#else
-#define num_online_cpus()	1U
-#define num_possible_cpus()	1U
-#define num_present_cpus()	1U
-#define num_active_cpus()	1U
-#define cpu_online(cpu)		((cpu) == 0)
-#define cpu_possible(cpu)	((cpu) == 0)
-#define cpu_present(cpu)	((cpu) == 0)
-#define cpu_active(cpu)		((cpu) == 0)
-#endif
+extern atomic_t __num_online_cpus;
 
 static inline void cpu_max_bits_warn(unsigned int cpu, unsigned int bits)
 {
@@ -186,6 +171,16 @@ static inline unsigned int cpumask_local_spread(unsigned int i, int node)
 	return 0;
 }
 
+static inline unsigned int cpumask_any_and_distribute(const struct cpumask *src1p,
+					     const struct cpumask *src2p) {
+	return cpumask_next_and(-1, src1p, src2p);
+}
+
+static inline unsigned int cpumask_any_distribute(const struct cpumask *srcp)
+{
+	return cpumask_first(srcp);
+}
+
 #define for_each_cpu(cpu, mask)			\
 	for ((cpu) = 0; (cpu) < 1; (cpu)++, (void)mask)
 #define for_each_cpu_not(cpu, mask)		\
@@ -202,6 +197,15 @@ static inline unsigned int cpumask_first(const struct cpumask *srcp)
 
 	nr = __builtin_ffsl(*cpumask_bits(srcp)) - 1;
 	return nr > nr_cpumask_bits ? nr_cpumask_bits : nr;
+}
+
+static inline
+unsigned int cpumask_first_and_and(const struct cpumask *srcp1,
+				   const struct cpumask *srcp2,
+				   const struct cpumask *srcp3)
+{
+	return find_first_and_and_bit(cpumask_bits(srcp1), cpumask_bits(srcp2),
+				      cpumask_bits(srcp3), nr_cpumask_bits);
 }
 
 static inline unsigned int cpumask_last(const struct cpumask *srcp)
@@ -323,11 +327,14 @@ static inline unsigned int cpumask_next_zero(int n, const struct cpumask *srcp)
 	return find_next_zero_bit(cpumask_bits(srcp), nr_cpumask_bits, n+1);
 }
 
-int cpumask_next_and(int n, const struct cpumask *, const struct cpumask *);
-int cpumask_any_but(const struct cpumask *mask, unsigned int cpu);
+unsigned int cpumask_next_and(int n, const struct cpumask *, const struct cpumask *);
+unsigned int cpumask_any_but(const struct cpumask *mask, unsigned int cpu);
 #endif /* NR_CPUS <= BITS_PER_LONG */
 
 unsigned int cpumask_local_spread(unsigned int i, int node);
+unsigned int cpumask_any_distribute(const struct cpumask *srcp);
+unsigned int cpumask_any_and_distribute(const struct cpumask *src1p,
+			       const struct cpumask *src2p);
 
 /**
  * for_each_cpu - iterate over every cpu in a mask
@@ -353,7 +360,7 @@ unsigned int cpumask_local_spread(unsigned int i, int node);
 		(cpu) = cpumask_next_zero((cpu), (mask)),	\
 		(cpu) < nr_cpu_ids;)
 
-extern int cpumask_next_wrap(int n, const struct cpumask *mask, int start, bool wrap);
+unsigned int cpumask_next_wrap(int n, const struct cpumask *mask, int start, bool wrap);
 
 /**
  * for_each_cpu_wrap - iterate over every cpu in a mask, starting at a specified location
@@ -920,14 +927,7 @@ set_cpu_present(unsigned int cpu, bool present)
 		cpumask_clear_cpu(cpu, &__cpu_present_mask);
 }
 
-static inline void
-set_cpu_online(unsigned int cpu, bool online)
-{
-	if (online)
-		cpumask_set_cpu(cpu, &__cpu_online_mask);
-	else
-		cpumask_clear_cpu(cpu, &__cpu_online_mask);
-}
+void set_cpu_online(unsigned int cpu, bool online);
 
 static inline void
 set_cpu_active(unsigned int cpu, bool active)
@@ -936,6 +936,15 @@ set_cpu_active(unsigned int cpu, bool active)
 		cpumask_set_cpu(cpu, &__cpu_active_mask);
 	else
 		cpumask_clear_cpu(cpu, &__cpu_active_mask);
+}
+
+static inline void
+set_cpu_dying(unsigned int cpu, bool dying)
+{
+	if (dying)
+		cpumask_set_cpu(cpu, &__cpu_dying_mask);
+	else
+		cpumask_clear_cpu(cpu, &__cpu_dying_mask);
 }
 
 /**
@@ -973,6 +982,82 @@ static inline const struct cpumask *get_cpu_mask(unsigned int cpu)
 	p -= cpu / BITS_PER_LONG;
 	return to_cpumask(p);
 }
+
+#if NR_CPUS > 1
+/**
+ * num_online_cpus() - Read the number of online CPUs
+ *
+ * Despite the fact that __num_online_cpus is of type atomic_t, this
+ * interface gives only a momentary snapshot and is not protected against
+ * concurrent CPU hotplug operations unless invoked from a cpuhp_lock held
+ * region.
+ */
+static inline unsigned int num_online_cpus(void)
+{
+	return atomic_read(&__num_online_cpus);
+}
+#define num_possible_cpus()	cpumask_weight(cpu_possible_mask)
+#define num_present_cpus()	cpumask_weight(cpu_present_mask)
+#define num_active_cpus()	cpumask_weight(cpu_active_mask)
+
+static inline bool cpu_online(unsigned int cpu)
+{
+	return cpumask_test_cpu(cpu, cpu_online_mask);
+}
+
+static inline bool cpu_possible(unsigned int cpu)
+{
+	return cpumask_test_cpu(cpu, cpu_possible_mask);
+}
+
+static inline bool cpu_present(unsigned int cpu)
+{
+	return cpumask_test_cpu(cpu, cpu_present_mask);
+}
+
+static inline bool cpu_active(unsigned int cpu)
+{
+	return cpumask_test_cpu(cpu, cpu_active_mask);
+}
+
+static inline bool cpu_dying(unsigned int cpu)
+{
+	return cpumask_test_cpu(cpu, cpu_dying_mask);
+}
+
+#else
+
+#define num_online_cpus()	1U
+#define num_possible_cpus()	1U
+#define num_present_cpus()	1U
+#define num_active_cpus()	1U
+
+static inline bool cpu_online(unsigned int cpu)
+{
+	return cpu == 0;
+}
+
+static inline bool cpu_possible(unsigned int cpu)
+{
+	return cpu == 0;
+}
+
+static inline bool cpu_present(unsigned int cpu)
+{
+	return cpu == 0;
+}
+
+static inline bool cpu_active(unsigned int cpu)
+{
+	return cpu == 0;
+}
+
+static inline bool cpu_dying(unsigned int cpu)
+{
+	return false;
+}
+
+#endif /* NR_CPUS > 1 */
 
 #define cpu_is_offline(cpu)	unlikely(!cpu_online(cpu))
 

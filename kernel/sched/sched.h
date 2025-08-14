@@ -621,15 +621,14 @@ do {									\
 /* CFS-related fields in a runqueue */
 struct cfs_rq {
 	struct load_weight	load;
-	unsigned int		nr_running;
-	unsigned int		h_nr_running;      /* SCHED_{NORMAL,BATCH,IDLE} */
-	unsigned int		idle_h_nr_running; /* SCHED_IDLE */
-	unsigned int		h_nr_delayed;
+	unsigned int		nr_queued;
+	unsigned int		h_nr_queued;       /* SCHED_{NORMAL,BATCH,IDLE} */
+	unsigned int		h_nr_runnable;     /* SCHED_{NORMAL,BATCH,IDLE} */
+	unsigned int		h_nr_idle; /* SCHED_IDLE */
 
 	s64			avg_vruntime;
 	u64			avg_load;
 
-	u64			exec_clock;
 	u64			min_vruntime;
 
 	struct rb_root_cached	tasks_timeline;
@@ -640,10 +639,6 @@ struct cfs_rq {
 	 */
 	struct sched_entity	*curr;
 	struct sched_entity	*next;
-
-#ifdef	CONFIG_SCHED_DEBUG
-	unsigned int		nr_spread_over;
-#endif
 
 #ifdef CONFIG_SMP
 	/*
@@ -828,11 +823,8 @@ struct dl_rq {
 
 static inline void se_update_runnable(struct sched_entity *se)
 {
-	if (!entity_is_task(se)) {
-		struct cfs_rq *cfs_rq = se->my_q;
-
-		se->runnable_weight = cfs_rq->h_nr_running - cfs_rq->h_nr_delayed;
-	}
+	if (!entity_is_task(se))
+		se->runnable_weight = se->my_q->h_nr_runnable;
 }
 
 static inline long se_runnable(struct sched_entity *se)
@@ -1120,6 +1112,7 @@ struct rq {
 	unsigned long		cpu_capacity_orig;
 
 	struct callback_head	*balance_callback;
+	unsigned char		balance_push;
 
 	unsigned char		nohz_idle_balance;
 	unsigned char		idle_balance;
@@ -1156,6 +1149,10 @@ struct rq {
 
 	/* This is used to determine avg_idle's max value */
 	u64			max_idle_balance_cost;
+
+#ifdef CONFIG_HOTPLUG_CPU
+	struct rcuwait		hotplug_wait;
+#endif
 #endif /* CONFIG_SMP */
 
 #ifdef CONFIG_SCHED_WALT
@@ -1218,7 +1215,6 @@ struct rq {
 	/* latency stats */
 	struct sched_info	rq_sched_info;
 	unsigned long long	rq_cpu_time;
-	/* could above be rq->cfs_rq.exec_clock + rq->rt_rq.rt_runtime ? */
 
 	/* sys_sched_yield() stats */
 	unsigned int		yld_count;
@@ -1236,6 +1232,15 @@ struct rq {
 	/* Must be inspected within a rcu lock section */
 	struct cpuidle_state	*idle_state;
 #endif
+
+#if defined(CONFIG_PREEMPT_RT) && defined(CONFIG_SMP)
+	unsigned int		nr_pinned;
+#endif
+	unsigned int		push_busy;
+	struct cpu_stop_work	push_work;
+
+	/* Scratch cpumask to be temporarily used under rq_lock */
+	cpumask_var_t		scratch_mask;
 };
 
 #ifdef CONFIG_FAIR_GROUP_SCHED
@@ -1338,6 +1343,17 @@ static inline bool sched_group_cookie_match(struct rq *rq,
 	return true;
 }
 #endif /* CONFIG_SCHED_CORE */
+
+#define MDF_PUSH	0x01
+
+static inline bool is_migration_disabled(struct task_struct *p)
+{
+#if defined(CONFIG_SMP) && defined(CONFIG_PREEMPT_RT)
+	return p->migration_disabled;
+#else
+	return false;
+#endif
+}
 
 #ifdef CONFIG_SCHED_SMT
 extern void __update_idle_core(struct rq *rq);
@@ -1466,6 +1482,8 @@ struct rq_flags {
 #endif
 };
 
+extern struct callback_head balance_push_callback;
+
 static inline void rq_pin_lock(struct rq *rq, struct rq_flags *rf)
 {
 	rf->cookie = lockdep_pin_lock(&rq->lock);
@@ -1473,6 +1491,9 @@ static inline void rq_pin_lock(struct rq *rq, struct rq_flags *rf)
 #ifdef CONFIG_SCHED_DEBUG
 	rq->clock_update_flags &= (RQCF_REQ_SKIP|RQCF_ACT_SKIP);
 	rf->clock_update_flags = 0;
+#ifdef CONFIG_SMP
+	SCHED_WARN_ON(rq->balance_callback && rq->balance_callback != &balance_push_callback);
+#endif
 #endif
 }
 
@@ -1641,7 +1662,12 @@ queue_balance_callback(struct rq *rq,
 {
 	lockdep_assert_held(&rq->lock);
 
-	if (unlikely(head->next))
+	/*
+	 * Don't (re)queue an already queued item; nor queue anything when
+	 * balance_push() is active, see the comment with
+	 * balance_push_callback.
+	 */
+	if (unlikely(head->next || rq->balance_callback == &balance_push_callback))
 		return;
 
 	head->func = (void (*)(struct callback_head *))func;
@@ -1784,6 +1810,13 @@ static inline void unregister_sched_domain_sysctl(void)
 #endif
 
 extern void flush_smp_call_function_from_idle(void);
+
+static inline const struct cpumask *task_user_cpus(struct task_struct *p)
+{
+	if (!p->user_cpus_ptr)
+		return cpu_possible_mask; /* &init_task.cpus_mask */
+	return p->user_cpus_ptr;
+}
 
 #else /* !CONFIG_SMP: */
 static inline void flush_smp_call_function_from_idle(void) { }
@@ -1980,6 +2013,12 @@ extern const u32		sched_prio_to_wmult[40];
 
 #define RETRY_TASK		((void *)-1UL)
 
+struct affinity_context {
+	const struct cpumask *new_mask;
+	struct cpumask *user_mask;
+	unsigned int flags;
+};
+
 struct sched_class {
 	const struct sched_class *next;
 
@@ -2013,11 +2052,12 @@ struct sched_class {
 
 	void (*task_woken)(struct rq *this_rq, struct task_struct *task);
 
-	void (*set_cpus_allowed)(struct task_struct *p,
-				 const struct cpumask *newmask);
+	void (*set_cpus_allowed)(struct task_struct *p, struct affinity_context *ctx);
 
 	void (*rq_online)(struct rq *rq);
 	void (*rq_offline)(struct rq *rq);
+
+	struct rq *(*find_lock_rq)(struct task_struct *p, struct rq *rq);
 #endif
 
 	void (*task_tick)(struct rq *rq, struct task_struct *p, int queued);
@@ -2101,11 +2141,16 @@ static inline bool sched_rt_runnable(struct rq *rq)
 
 static inline bool sched_fair_runnable(struct rq *rq)
 {
-	return rq->cfs.nr_running > 0;
+	return rq->cfs.nr_queued > 0;
 }
 
 extern struct task_struct *pick_next_task_fair(struct rq *rq, struct task_struct *prev, struct rq_flags *rf);
 extern struct task_struct *pick_next_task_idle(struct rq *rq);
+
+#define SCA_CHECK		0x01
+#define SCA_MIGRATE_DISABLE	0x02
+#define SCA_MIGRATE_ENABLE	0x04
+#define SCA_USER		0x08
 
 #ifdef CONFIG_SMP
 
@@ -2113,10 +2158,29 @@ extern void update_group_capacity(struct sched_domain *sd, int cpu);
 
 extern void trigger_load_balance(struct rq *rq);
 
-extern void set_cpus_allowed_common(struct task_struct *p, const struct cpumask *new_mask);
+extern void set_cpus_allowed_common(struct task_struct *p, struct affinity_context *ctx);
 
 bool __cpu_overutilized(int cpu, int delta);
 bool cpu_overutilized(int cpu);
+
+static inline struct task_struct *get_push_task(struct rq *rq)
+{
+	struct task_struct *p = rq->curr;
+
+	lockdep_assert_held(&rq->lock);
+
+	if (rq->push_busy)
+		return NULL;
+
+	if (p->nr_cpus_allowed == 1)
+		return NULL;
+
+	rq->push_busy = true;
+	get_task_struct(p);
+	return p;
+}
+
+extern int push_cpu_stop(void *arg);
 
 #endif
 

@@ -154,6 +154,9 @@ static int cpuhp_invoke_callback(unsigned int cpu, enum cpuhp_state state,
 	int (*cb)(unsigned int cpu);
 	int ret, cnt;
 
+	if (cpu_dying(cpu) != !bringup)
+		set_cpu_dying(cpu, !bringup);
+
 	if (st->fail == state) {
 		st->fail = CPUHP_INVALID;
 
@@ -1566,7 +1569,7 @@ static struct cpuhp_step cpuhp_hp_states[] = {
 	},
 #endif
 	/*
-	 * Handled on controll processor until the plugged processor manages
+	 * Handled on control processor until the plugged processor manages
 	 * this itself.
 	 */
 	[CPUHP_TEARDOWN_CPU] = {
@@ -1575,6 +1578,13 @@ static struct cpuhp_step cpuhp_hp_states[] = {
 		.teardown.single	= takedown_cpu,
 		.cant_stop		= true,
 	},
+
+	[CPUHP_AP_SCHED_WAIT_EMPTY] = {
+		.name			= "sched:waitempty",
+		.startup.single		= NULL,
+		.teardown.single	= sched_cpu_wait_empty,
+	},
+
 	/* Handle smpboot threads park/unpark */
 	[CPUHP_AP_SMPBOOT_THREADS] = {
 		.name			= "smpboot/threads:online",
@@ -2391,6 +2401,12 @@ EXPORT_SYMBOL(__cpu_present_mask);
 struct cpumask __cpu_active_mask __read_mostly;
 EXPORT_SYMBOL(__cpu_active_mask);
 
+struct cpumask __cpu_dying_mask __read_mostly;
+EXPORT_SYMBOL(__cpu_dying_mask);
+
+atomic_t __num_online_cpus __read_mostly;
+EXPORT_SYMBOL(__num_online_cpus);
+
 #if CONFIG_LITTLE_CPU_MASK
 static const unsigned long lp_cpu_bits = CONFIG_LITTLE_CPU_MASK;
 const struct cpumask *const cpu_lp_mask = to_cpumask(&lp_cpu_bits);
@@ -2428,6 +2444,27 @@ void init_cpu_possible(const struct cpumask *src)
 void init_cpu_online(const struct cpumask *src)
 {
 	cpumask_copy(&__cpu_online_mask, src);
+}
+
+void set_cpu_online(unsigned int cpu, bool online)
+{
+	/*
+	 * atomic_inc/dec() is required to handle the horrid abuse of this
+	 * function by the reboot and kexec code which invoke it from
+	 * IPI/NMI broadcasts when shutting down CPUs. Invocation from
+	 * regular CPU hotplug is properly serialized.
+	 *
+	 * Note, that the fact that __num_online_cpus is of type atomic_t
+	 * does not protect readers which are not serialized against
+	 * concurrent hotplug operations.
+	 */
+	if (online) {
+		if (!cpumask_test_and_set_cpu(cpu, &__cpu_online_mask))
+			atomic_inc(&__num_online_cpus);
+	} else {
+		if (cpumask_test_and_clear_cpu(cpu, &__cpu_online_mask))
+			atomic_dec(&__num_online_cpus);
+	}
 }
 
 /*
