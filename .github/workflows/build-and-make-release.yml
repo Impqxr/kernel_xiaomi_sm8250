@@ -103,7 +103,7 @@ jobs:
           # *-* Munch *-*
           - name: "KernelSU-Next Only (munch)"
             KERNEL_DEVICE_CONFIG: "munch"
-            KERNEL_TREE_BRANCH: "base-munch"
+            KERNEL_TREE_BRANCH: "base"
             KERNELSU_NAME: "KSUN"
             KERNELSU_SETUP_URL: "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/refs/heads/next/kernel/setup.sh"
             KERNELSU_SETUP_BRANCH: "next"
@@ -111,7 +111,7 @@ jobs:
 
           - name: "KernelSU-Next with SuSFS (munch)"
             KERNEL_DEVICE_CONFIG: "munch"
-            KERNEL_TREE_BRANCH: "susfs-v1.5.5-munch"
+            KERNEL_TREE_BRANCH: "susfs-v1.5.5"
             KERNELSU_NAME: "KSUN"
             KERNELSU_SETUP_URL: "https://raw.githubusercontent.com/Impqxr/KernelSU-Next/refs/heads/next-susfs/kernel/setup.sh"
             KERNELSU_SETUP_BRANCH: "next-susfs"
@@ -119,7 +119,7 @@ jobs:
 
           - name: "Rissu's KernelSU Only (munch)"
             KERNEL_DEVICE_CONFIG: "munch"
-            KERNEL_TREE_BRANCH: "base-munch"
+            KERNEL_TREE_BRANCH: "base"
             KERNELSU_SETUP_URL: "https://raw.githubusercontent.com/rsuntk/KernelSU/refs/heads/main/kernel/setup.sh"
             KERNELSU_NAME: "RKSU"
             KERNELSU_SETUP_BRANCH: "main"
@@ -127,7 +127,7 @@ jobs:
 
           - name: "Rissu's KernelSU with SuSFS (munch)"
             KERNEL_DEVICE_CONFIG: "munch"
-            KERNEL_TREE_BRANCH: "susfs-v1.5.5-munch"
+            KERNEL_TREE_BRANCH: "susfs-v1.5.5"
             KERNELSU_SETUP_URL: "https://raw.githubusercontent.com/rsuntk/KernelSU/refs/heads/main/kernel/setup.sh"
             KERNELSU_NAME: "RKSU"
             KERNELSU_SETUP_BRANCH: "susfs-legacy"
@@ -135,7 +135,7 @@ jobs:
 
           - name: "No KSU (munch)"
             KERNEL_DEVICE_CONFIG: "munch"
-            KERNEL_TREE_BRANCH: "base-munch"
+            KERNEL_TREE_BRANCH: "base"
             KERNELSU_NAME: ""
             KERNELSU_SETUP_URL: ""
             KERNELSU_SETUP_BRANCH: ""
