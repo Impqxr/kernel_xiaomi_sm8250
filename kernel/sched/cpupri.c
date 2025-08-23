@@ -10,7 +10,7 @@
  *  This code tracks the priority of each CPU so that global migration
  *  decisions are easy to calculate.  Each CPU can be in a state as follows:
  *
- *                 (INVALID), NORMAL, RT1, ... RT99, HIGHER
+ *                 (INVALID), IDLE, NORMAL, RT1, ... RT99
  *
  *  going from the lowest priority to the highest.  CPUs in the INVALID state
  *  are not eligible for routing.  The system maintains this state with
@@ -18,7 +18,7 @@
  *  in that class).  Therefore a typical application without affinity
  *  restrictions can find a suitable CPU with O(1) complexity (e.g. two bit
  *  searches).  For tasks with affinity restrictions, the algorithm has a
- *  worst case complexity of O(min(101, nr_domcpus)), though the scenario that
+ *  worst case complexity of O(min(102, nr_domcpus)), though the scenario that
  *  yields the worst case search is fairly contrived.
  *
  *  This program is free software; you can redistribute it and/or
@@ -28,43 +28,19 @@
  */
 #include "sched.h"
 
-/*
- * p->rt_priority   p->prio   newpri   cpupri
- *
- *				  -1       -1 (CPUPRI_INVALID)
- *
- *				  99        0 (CPUPRI_NORMAL)
- *
- *		1        98       98        1
- *	      ...
- *	       49        50       50       49
- *	       50        49       49       50
- *	      ...
- *	       99         0        0       99
- *
- *				 100	  100 (CPUPRI_HIGHER)
- */
+/* Convert between a 140 based task->prio, and our 102 based cpupri */
 static int convert_prio(int prio)
 {
 	int cpupri;
 
-	switch (prio) {
-	case CPUPRI_INVALID:
-		cpupri = CPUPRI_INVALID;	/* -1 */
-		break;
-
-	case 0 ... 98:
-		cpupri = MAX_RT_PRIO-1 - prio;	/* 1 ... 99 */
-		break;
-
-	case MAX_RT_PRIO-1:
-		cpupri = CPUPRI_NORMAL;		/*  0 */
-		break;
-
-	case MAX_RT_PRIO:
-		cpupri = CPUPRI_HIGHER;		/* 100 */
-		break;
-	}
+	if (prio == CPUPRI_INVALID)
+		cpupri = CPUPRI_INVALID;
+	else if (prio == MAX_PRIO)
+		cpupri = CPUPRI_IDLE;
+	else if (prio >= MAX_RT_PRIO)
+		cpupri = CPUPRI_NORMAL;
+	else
+		cpupri = MAX_RT_PRIO - prio + 1;
 
 	return cpupri;
 }
@@ -129,6 +105,27 @@ int cpupri_find(struct cpupri *cp, struct task_struct *p,
 }
 
 /**
+ * drop_nopreempt_cpus - remove a cpu from the mask if it is likely
+ *			 non-preemptible
+ * @lowest_mask: mask with selected CPUs (non-NULL)
+ */
+static void
+drop_nopreempt_cpus(struct cpumask *lowest_mask)
+{
+	unsigned int cpu = cpumask_first(lowest_mask);
+
+	while (cpu < nr_cpu_ids) {
+		/* unlocked access */
+		struct task_struct *task = READ_ONCE(cpu_rq(cpu)->curr);
+
+		if (task_may_not_preempt(task, cpu))
+			cpumask_clear_cpu(cpu, lowest_mask);
+
+		cpu = cpumask_next(cpu, lowest_mask);
+	}
+}
+
+/**
  * cpupri_find - find the best (lowest-pri) CPU in the system
  * @cp: The cpupri context
  * @p: The task
@@ -149,9 +146,11 @@ int cpupri_find_fitness(struct cpupri *cp, struct task_struct *p,
 {
 	int task_pri = convert_prio(p->prio);
 	int idx, cpu;
+	bool drop_nopreempts = task_pri <= MAX_RT_PRIO;
 
 	BUG_ON(task_pri >= CPUPRI_NR_PRIORITIES);
 
+retry:
 	for (idx = 0; idx < task_pri; idx++) {
 
 		if (!__cpupri_find(cp, p, lowest_mask, idx))
@@ -159,6 +158,9 @@ int cpupri_find_fitness(struct cpupri *cp, struct task_struct *p,
 
 		if (!lowest_mask || !fitness_fn)
 			return 1;
+
+		if (drop_nopreempts)
+			drop_nopreempt_cpus(lowest_mask);
 
 		/* Ensure the capacity of the CPUs fit the task */
 		for_each_cpu(cpu, lowest_mask) {
@@ -174,6 +176,14 @@ int cpupri_find_fitness(struct cpupri *cp, struct task_struct *p,
 			continue;
 
 		return 1;
+	}
+	/*
+	 * If we can't find any non-preemptible cpu's, retry so we can
+	 * find the lowest priority target and avoid priority inversion.
+	 */
+	if (drop_nopreempts) {
+		drop_nopreempts = false;
+			goto retry;
 	}
 
 	/*
@@ -203,7 +213,7 @@ int cpupri_find_fitness(struct cpupri *cp, struct task_struct *p,
  * cpupri_set - update the CPU priority setting
  * @cp: The cpupri context
  * @cpu: The target CPU
- * @newpri: The priority (INVALID,NORMAL,RT1-RT99,HIGHER) to assign to this CPU
+ * @newpri: The priority (INVALID-RT99) to assign to this CPU
  *
  * Note: Assumes cpu_rq(cpu)->lock is locked
  *
@@ -315,4 +325,16 @@ void cpupri_cleanup(struct cpupri *cp)
 	kfree(cp->cpu_to_pri);
 	for (i = 0; i < CPUPRI_NR_PRIORITIES; i++)
 		free_cpumask_var(cp->pri_to_cpu[i].mask);
+}
+
+/*
+ * cpupri_check_rt - check if CPU has a RT task
+ * should be called from rcu-sched read section.
+ */
+bool cpupri_check_rt(void)
+{
+	int cpu = raw_smp_processor_id();
+
+	return (cpu_rq(cpu)->rd->cpupri.cpu_to_pri[cpu] > CPUPRI_NORMAL) &&
+	       (cpu_rq(cpu)->rt.rt_throttled == 0);
 }
