@@ -28,6 +28,7 @@
 struct cass_cpu_cand {
 	int cpu;
 	unsigned int exit_lat;
+	unsigned int highest_prio;
 	unsigned long cap;
 	unsigned long cap_max;
 	unsigned long cap_no_therm;
@@ -96,7 +97,7 @@ bool cass_prime_cpu(const struct cass_cpu_cand *c)
 static __always_inline
 bool cass_cpu_better(const struct cass_cpu_cand *a,
 		     const struct cass_cpu_cand *b, unsigned long p_util,
-		     int this_cpu, int prev_cpu, bool sync)
+		     int this_cpu, int prev_cpu, bool sync, bool rt)
 {
 #define cass_cmp(a, b) ({ res = (a) - (b); })
 #define cass_eq(a, b) ({ res = (a) == (b); })
@@ -115,6 +116,10 @@ bool cass_cpu_better(const struct cass_cpu_cand *a,
 	/* Prefer the CPU that fits the task */
 	if (cass_cmp(fits_capacity(p_util, a->cap_max),
 		     fits_capacity(p_util, b->cap_max)))
+		goto done;
+
+	/* Prefer CPUs with lower priority top tasks for RT */
+	if (rt && cass_cmp(a->highest_prio, b->highest_prio))
 		goto done;
 
 	/* Prefer the CPU that isn't the single fastest one in the system */
@@ -159,7 +164,7 @@ done:
 static int cass_best_cpu(struct task_struct *p, int prev_cpu, bool sync, bool rt)
 {
 	/* Initialize @best such that @best always has a valid CPU at the end */
-	struct cass_cpu_cand cands[2], *best = cands;
+	struct cass_cpu_cand cands[2], *best = NULL;
 	int this_cpu = raw_smp_processor_id();
 	unsigned long p_util, uc_min;
 	bool has_idle = false;
@@ -188,6 +193,16 @@ static int cass_best_cpu(struct task_struct *p, int prev_cpu, bool sync, bool rt
 		struct cass_cpu_cand *curr = &cands[cidx];
 		struct cpuidle_state *idle_state;
 		struct rq *rq = cpu_rq(cpu);
+
+		/* Skip throttled runqueues for RT tasks */
+		if (rt && rt_rq_throttled(&rq->rt))
+			continue;
+
+		/* Skip CPUs where p cannot preempt the current top RT task */
+		if (rt && p->prio > rq->rt.highest_prio.curr)
+			continue;
+
+		curr->highest_prio = rq->rt.highest_prio.curr;
 
 		/* Get the original, maximum _possible_ capacity of this CPU */
 		curr->cap_orig = arch_scale_cpu_capacity(cpu);
@@ -283,15 +298,15 @@ static int cass_best_cpu(struct task_struct *p, int prev_cpu, bool sync, bool rt
 		 * If @best == @curr then there's no need to compare them, but
 		 * cidx still needs to be changed to the other candidate slot.
 		 */
-		if (best == curr ||
+		if (!best ||
 		    cass_cpu_better(curr, best, p_util, this_cpu, prev_cpu,
-				    sync)) {
+				    sync, rt)) {
 			best = curr;
 			cidx ^= 1;
 		}
 	}
 
-	return best->cpu;
+	return best ? best->cpu : prev_cpu;
 }
 
 static int cass_select_task_rq(struct task_struct *p, int prev_cpu,
