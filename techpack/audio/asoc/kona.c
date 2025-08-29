@@ -40,7 +40,7 @@
 #include "kona-port-config.h"
 #include <soc/qcom/socinfo.h>
 #ifdef CONFIG_SND_SOC_TFA9874
-#ifdef CONFIG_TARGET_PRODUCT_MUNCH
+#if defined(CONFIG_BOARD_MUNCH)
 #include "codecs/tfa9874/inc/tfa_platform_interface_definition.h"
 #else
 #include "codecs/tfa98xx/inc/tfa_platform_interface_definition.h"
@@ -84,6 +84,7 @@
 #define TDM_CHANNEL_MAX		8
 #define DEV_NAME_STR_LEN	32
 
+#define MSM_LL_QOS_VALUE	300 /* time in us to ensure LPM doesn't go in C3/C4 */
 
 #define ADSP_STATE_READY_TIMEOUT_MS 3000
 
@@ -95,21 +96,18 @@
 #define WCN_CDC_SLIM_TX_CH_MAX 2
 #define WCN_CDC_SLIM_TX_CH_MAX_LITO 3
 
+#define SWR_MAX_SLAVE_DEVICES 6
+
 //static atomic_t cs35l41_mclk_rsc_ref;
-#ifdef AUDIO_SM8250_FLAG
-  #if defined (CONFIG_TARGET_PRODUCT_ALIOTH)
-    #define CS35L41_SPEAKER_NAME "cs35l41.1-0040"
-    #define CS35L41_RECEIVER_NAME "cs35l41.1-0041"
-  #else
-    #define CS35L41_SPEAKER_NAME "cs35l41.1-0040"
-    #define CS35L41_RECEIVER_NAME "cs35l41.1-0042"
-  #endif
+#if defined (CONFIG_BOARD_ALIOTH)
+#define CS35L41_SPEAKER_NAME "cs35l41.1-0040"
+#define CS35L41_RECEIVER_NAME "cs35l41.1-0041"
 #else
-#define CS35L41_SPEAKER_NAME "cs35l41.2-0040"
-#define CS35L41_RECEIVER_NAME "cs35l41.2-0042"
+#define CS35L41_SPEAKER_NAME "cs35l41.1-0040"
+#define CS35L41_RECEIVER_NAME "cs35l41.1-0042"
 #endif
 
-#ifdef CONFIG_TARGET_PRODUCT_MUNCH
+#if defined(CONFIG_BOARD_MUNCH)
 #define TFA98xx_RECEIVER_NAME "tfa98xx.1-0034"
 #define TFA98xx_SPEAKER_NAME "tfa98xx.1-0035"
 static struct snd_soc_dai_link_component tfa98xx_codec_components[]=
@@ -126,7 +124,7 @@ static struct snd_soc_dai_link_component tfa98xx_codec_components[]=
 };
 #endif
 
-#if defined(CONFIG_TARGET_PRODUCT_ENUMA) || defined(CONFIG_TARGET_PRODUCT_ELISH)
+#if defined(CONFIG_BOARD_ENUMA) || defined(CONFIG_BOARD_ELISH)
 struct snd_soc_dai_link_component cs35l41_codec_components[] = {
        {
                .name = "cs35l41.1-0040",
@@ -161,6 +159,25 @@ struct snd_soc_dai_link_component cs35l41_codec_components[] = {
                .dai_name = "cs35l41.2-0042",
        },
 };
+#elif defined(CONFIG_BOARD_DAGU)
+struct snd_soc_dai_link_component cs35l41_codec_components[] = {
+       {
+               .name = "cs35l41.1-0040",
+               .dai_name = "cs35l41.1-0040",
+       },
+       {
+               .name = "cs35l41.1-0041",
+               .dai_name = "cs35l41.1-0041",
+       },
+       {
+               .name = "cs35l41.3-0041",
+               .dai_name = "cs35l41.3-0041",
+       },
+       {
+               .name = "cs35l41.3-0043",
+               .dai_name = "cs35l41.3-0043",
+       },
+};
 #else
 struct snd_soc_dai_link_component cs35l41_codec_components[] = {
 	{
@@ -168,17 +185,48 @@ struct snd_soc_dai_link_component cs35l41_codec_components[] = {
 		//.dai_name = "cs35l41-pcm",
 		.dai_name = CS35L41_SPEAKER_NAME,
 	},
-#ifdef AUDIO_SM8250_FLAG
 	{
 		.name = CS35L41_RECEIVER_NAME,
 		//.dai_name = "cs35l41-pcm",
 		.dai_name = CS35L41_RECEIVER_NAME,
 	},
-#endif
 };
 #endif
 
-#ifdef CONFIG_TARGET_PRODUCT_MUNCH
+#if defined(CONFIG_BOARD_PIPA)
+struct snd_soc_dai_link_component aw882xx_codec_components[] = {
+       {
+               .name = "aw882xx_smartpa.2-0034",
+               .dai_name = "aw882xx-aif-2-34",
+       },
+       {
+               .name = "aw882xx_smartpa.2-0035",
+               .dai_name = "aw882xx-aif-2-35",
+       },
+       {
+               .name = "aw882xx_smartpa.0-0036",
+               .dai_name = "aw882xx-aif-0-36",
+       },
+       {
+               .name = "aw882xx_smartpa.0-0037",
+               .dai_name = "aw882xx-aif-0-37",
+       },
+};
+#else
+struct snd_soc_dai_link_component aw882xx_codec_components[] = {
+       {
+               .name = "aw882xx_smartpa.0-0036",
+               .dai_name = "aw882xx-aif-0-36",
+       },
+       {
+               .name = "aw882xx_smartpa.0-0037",
+               .dai_name = "aw882xx-aif-0-37",
+       },
+};
+#endif
+
+
+#if defined(CONFIG_BOARD_MUNCH)
 static struct snd_soc_codec_conf tfa98xx_codec_conf[] = {
 	{
 		.dev_name	= TFA98xx_RECEIVER_NAME,
@@ -196,16 +244,12 @@ static struct snd_soc_codec_conf cs35l41_codec_conf[] = {
 		.dev_name	= CS35L41_SPEAKER_NAME,
 		.name_prefix	= "SPK",
 	},
-#ifdef AUDIO_SM8250_FLAG
 	{
 		.dev_name	= CS35L41_RECEIVER_NAME,
 		.name_prefix	= "RCV",
 	},
-#endif
 };
 #endif
-
-#define SWR_MAX_SLAVE_DEVICES 6
 
 enum {
 	RX_PATH = 0,
@@ -225,16 +269,12 @@ enum {
 	TDM_PORT_MAX,
 };
 
-#if defined(CONFIG_TARGET_PRODUCT_PSYCHE)
+#if defined(CONFIG_BOARD_PSYCHE) || defined(CONFIG_BOARD_DAGU)
 #define TDM_MAX_SLOTS 4
 #else
 #define TDM_MAX_SLOTS 8
 #endif
-#if defined(CONFIG_TARGET_PRODUCT_ENUMA) || defined(CONFIG_TARGET_PRODUCT_ELISH)
 #define TDM_SLOT_WIDTH_BITS 32
-#else
-#define TDM_SLOT_WIDTH_BITS 32
-#endif
 #define TDM_SLOT_WIDTH_BYTES TDM_SLOT_WIDTH_BITS/8
 
 enum {
@@ -635,7 +675,7 @@ static struct tdm_dev_config pri_tdm_dev_config[MAX_PATH][TDM_PORT_MAX] = {
 		{ {0xFFFF} }, /* RX_7 */
 	},
 	{
-#if defined(CONFIG_TARGET_PRODUCT_PSYCHE)
+#if defined(CONFIG_BOARD_PSYCHE) || defined(CONFIG_BOARD_DAGU)
 		{ {0,   4, 0xFFFF} }, /* TX_0 */
 #else
 		{ {0,   4,      8, 12, 0xFFFF} }, /* TX_0 */
@@ -675,8 +715,12 @@ static struct tdm_dev_config sec_tdm_dev_config[MAX_PATH][TDM_PORT_MAX] = {
 
 static struct tdm_dev_config tert_tdm_dev_config[MAX_PATH][TDM_PORT_MAX] = {
 	{ /* TERT TDM */
-#if defined(CONFIG_TARGET_PRODUCT_ENUMA) || defined(CONFIG_TARGET_PRODUCT_ELISH)
+#if defined(CONFIG_BOARD_ENUMA) || defined(CONFIG_BOARD_ELISH)
 		{ {0,   4, 8, 12, 16, 20, 24, 28} }, /* RX_0 */
+#elif defined(CONFIG_BOARD_DAGU)
+		{ {0,   4, 8, 12} }, /* RX_0 */
+#elif defined(CONFIG_BOARD_PIPA)
+		{ {0,  4,  8,  12, 0xFFFF} }, /* RX_0 */
 #else
 		{ {0,   4, 0xFFFF} }, /* RX_0 */
 #endif
@@ -689,8 +733,10 @@ static struct tdm_dev_config tert_tdm_dev_config[MAX_PATH][TDM_PORT_MAX] = {
 		{ {0xFFFF} }, /* RX_7 */
 	},
 	{
-#if defined(CONFIG_TARGET_PRODUCT_ENUMA) || defined(CONFIG_TARGET_PRODUCT_ELISH)
+#if defined(CONFIG_BOARD_ENUMA) || defined(CONFIG_BOARD_ELISH)
 		{ {4,  12,  16,  28, 0xFFFF} }, /* TX_0 */
+#elif defined(CONFIG_BOARD_PIPA)
+		{ {0,  4,  8,  12, 0xFFFF} }, /* TX_0 */
 #else
 		{ {0,   4, 0xFFFF} }, /* TX_0 */
 #endif
@@ -1057,8 +1103,8 @@ static struct wcd_mbhc_config wcd_mbhc_cfg = {
 	.swap_gnd_mic = NULL,
 	.hs_ext_micbias = true,
 	.key_code[0] = KEY_MEDIA,
-	.key_code[1] = KEY_VOLUMEUP,
-	.key_code[2] = KEY_VOLUMEDOWN,
+	.key_code[1] = BTN_1,
+	.key_code[2] = BTN_2,
 	.key_code[3] = 0,
 	.key_code[4] = 0,
 	.key_code[5] = 0,
@@ -3966,8 +4012,6 @@ static const struct snd_kcontrol_new msm_common_snd_controls[] = {
 			afe_loopback_tx_ch_get, afe_loopback_tx_ch_put),
 	SOC_ENUM_EXT("VI_FEED_TX Channels", vi_feed_tx_chs,
 			msm_vi_feed_tx_ch_get, msm_vi_feed_tx_ch_put),
-	SOC_SINGLE_EXT("USB Headset Direction", 0, 0, UINT_MAX, 0,
-			usbhs_direction_get, NULL),
 };
 
 static const struct snd_kcontrol_new msm_tdm_snd_controls[] = {
@@ -4240,6 +4284,8 @@ static const struct snd_kcontrol_new msm_mi2s_snd_controls[] = {
 			msm_mi2s_tx_ch_get, msm_mi2s_tx_ch_put),
 	SOC_ENUM_EXT("SEN_MI2S_TX Channels", sen_mi2s_tx_chs,
 			msm_mi2s_tx_ch_get, msm_mi2s_tx_ch_put),
+	SOC_SINGLE_EXT("USB Headset Direction", 0, 0, UINT_MAX, 0,
+			usbhs_direction_get, NULL),
 };
 
 static const struct snd_kcontrol_new msm_snd_controls[] = {
@@ -5295,6 +5341,22 @@ err:
 	return ret;
 }
 
+static int msm_fe_qos_prepare(struct snd_pcm_substream *substream)
+{
+
+	if (pm_qos_request_active(&substream->latency_pm_qos_req))
+		pm_qos_remove_request(&substream->latency_pm_qos_req);
+
+	substream->latency_pm_qos_req.cpus_affine = BIT(1) | BIT(2);
+
+	substream->latency_pm_qos_req.type = PM_QOS_REQ_AFFINE_CORES;
+
+	pm_qos_add_request(&substream->latency_pm_qos_req,
+			  PM_QOS_CPU_DMA_LATENCY,
+			  MSM_LL_QOS_VALUE);
+	return 0;
+}
+
 void mi2s_disable_audio_vote(struct snd_pcm_substream *substream)
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
@@ -5643,7 +5705,6 @@ static struct snd_soc_ops msm_mi2s_cs35l41_be_ops = {
 };
 #endif
 
-#ifdef CONFIG_BOARD_XIAOMI
 static int cs35l41_init(struct snd_soc_pcm_runtime *rtd)
 {
 #if 0
@@ -5679,14 +5740,18 @@ static int cs35l41_init(struct snd_soc_pcm_runtime *rtd)
 #endif
 	return 0;
 }
-#endif
 
-#if defined(CONFIG_TARGET_PRODUCT_MUNCH)
+#if defined(CONFIG_BOARD_MUNCH)
 static int tfa98xx_init(struct snd_soc_pcm_runtime *rtd)
 {
 	return 0;
 }
 #endif
+
+static struct snd_soc_ops msm_fe_qos_ops = {
+	.prepare = msm_fe_qos_prepare,
+};
+
 static struct snd_soc_ops msm_cdc_dma_be_ops = {
 	.startup = msm_snd_cdc_dma_startup,
 	.hw_params = msm_snd_cdc_dma_hw_params,
@@ -6214,6 +6279,7 @@ static struct snd_soc_dai_link msm_common_dai_links[] = {
 		/* this dainlink has playback support */
 		.ignore_pmdown_time = 1,
 		.id = MSM_FRONTEND_DAI_MULTIMEDIA5,
+		.ops = &msm_fe_qos_ops,
 	},
 	{/* hw:x,10 */
 		.name = "Listen 1 Audio Service",
@@ -6280,6 +6346,7 @@ static struct snd_soc_dai_link msm_common_dai_links[] = {
 		.ignore_pmdown_time = 1,
 		 /* this dainlink has playback support */
 		.id = MSM_FRONTEND_DAI_MULTIMEDIA8,
+		.ops = &msm_fe_qos_ops,
 	},
 	/* HDMI Hostless */
 	{/* hw:x,14 */
@@ -6533,11 +6600,11 @@ static struct snd_soc_dai_link msm_common_dai_links[] = {
 		.ignore_pmdown_time = 1,
 		 /* this dainlink has playback support */
 		.id = MSM_FRONTEND_DAI_MULTIMEDIA16,
+		.ops = &msm_fe_qos_ops,
 	},
-#ifdef AUDIO_SM8250_FLAG
 	{/* hw:x,30 */
-#if defined(CONFIG_TARGET_PRODUCT_APOLLO) || defined(CONFIG_TARGET_PRODUCT_CAS) || defined(CONFIG_TARGET_PRODUCT_ALIOTH)|| defined(CONFIG_TARGET_PRODUCT_ENUMA) || defined(CONFIG_TARGET_PRODUCT_ELISH)\
-		|| defined(CONFIG_TARGET_PRODUCT_PSYCHE)
+#if defined(CONFIG_BOARD_APOLLO) || defined(CONFIG_BOARD_CAS) || defined(CONFIG_BOARD_ALIOTH)|| defined(CONFIG_BOARD_ENUMA) || defined(CONFIG_BOARD_ELISH)\
+		|| defined(CONFIG_BOARD_PSYCHE) || defined(CONFIG_BOARD_DAGU)
 		.name = "Tertiary TDM1 Hostless Playback",
 		.stream_name = "Tertiary TDM1 Hostless Playback",
 		.cpu_dai_name = "msm-dai-q6-tdm.36898",
@@ -6551,6 +6618,23 @@ static struct snd_soc_dai_link msm_common_dai_links[] = {
 		.id = MSM_BACKEND_DAI_TERT_TDM_RX_1,
 		.codecs = cs35l41_codec_components,
 		.num_codecs = ARRAY_SIZE(cs35l41_codec_components),
+		.be_hw_params_fixup = msm_be_hw_params_fixup,
+		.ignore_suspend = 1,
+		.ignore_pmdown_time = 1,
+#elif defined(CONFIG_BOARD_PIPA)
+		.name = "Tertiary TDM1 Hostless Playback",
+		.stream_name = "Tertiary TDM1 Hostless Playback",
+		.cpu_dai_name = "msm-dai-q6-tdm.36898",
+		.platform_name = "msm-pcm-hostless",
+		//.dynamic = 1,
+		.dpcm_playback = 1,
+		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
+				SND_SOC_DPCM_TRIGGER_POST},
+		.no_host_mode = SND_SOC_DAI_LINK_NO_HOST,
+		.ops = &kona_tdm_be_ops,
+		.id = MSM_BACKEND_DAI_TERT_TDM_RX_1,
+		.codecs = aw882xx_codec_components,
+		.num_codecs = ARRAY_SIZE(aw882xx_codec_components),
 		.be_hw_params_fixup = msm_be_hw_params_fixup,
 		.ignore_suspend = 1,
 		.ignore_pmdown_time = 1,
@@ -6568,9 +6652,6 @@ static struct snd_soc_dai_link msm_common_dai_links[] = {
 		.ignore_suspend = 1,
 		 /* this dailink has playback support */
 		.ignore_pmdown_time = 1,
-#if defined(CONFIG_TARGET_PRODUCT_THYME)
-		.be_hw_params_fixup = msm_be_hw_params_fixup,
-#endif
 		.ops = &msm_cdc_dma_be_ops,
 #endif
 	},
@@ -6587,39 +6668,23 @@ static struct snd_soc_dai_link msm_common_dai_links[] = {
 		.codec_dai_name = "tx_macro_tx2",
 		.ops = &msm_cdc_dma_be_ops,
 	},
+#if defined(CONFIG_BOARD_PIPA)
+	{/* hw:x,32 */
+		.name = "Tertiary TDM0 TX_Hostless",
+		.stream_name = "Tertiary TDM0 Hostless Capture",
+		.cpu_dai_name = "TERT_TDM_TX_0_HOSTLESS",
+		.platform_name = "msm-pcm-hostless",
+		.dynamic = 1,
+		.dpcm_capture = 1,
+		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
+				SND_SOC_DPCM_TRIGGER_POST},
+		.no_host_mode = SND_SOC_DAI_LINK_NO_HOST,
+		.ignore_suspend = 1,
+		.ignore_pmdown_time = 1,
+		.codec_dai_name = "snd-soc-dummy-dai",
+		.codec_name = "snd-soc-dummy",
+	},
 #else
-    {/* hw:x,30 */
-        .name = "CDC_DMA Hostless",
-        .stream_name = "CDC_DMA Hostless",
-        .cpu_dai_name = "CDC_DMA_HOSTLESS",
-        .platform_name = "msm-pcm-hostless",
-        .dynamic = 1,
-        .dpcm_playback = 1,
-        .dpcm_capture = 1,
-        .trigger = {SND_SOC_DPCM_TRIGGER_POST,
-            SND_SOC_DPCM_TRIGGER_POST},
-        .no_host_mode = SND_SOC_DAI_LINK_NO_HOST,
-        .ignore_suspend = 1,
-        /* this dailink has playback support */
-        .ignore_pmdown_time = 1,
-        .codec_dai_name = "snd-soc-dummy-dai",
-        .codec_name = "snd-soc-dummy",
-    },
-    {/* hw:x,31 */
-        .name = "TX3_CDC_DMA Hostless",
-        .stream_name = "TX3_CDC_DMA Hostless",
-        .cpu_dai_name = "TX3_CDC_DMA_HOSTLESS",
-        .platform_name = "msm-pcm-hostless",
-        .dynamic = 1,
-        .dpcm_capture = 1,
-        .trigger = {SND_SOC_DPCM_TRIGGER_POST,
-            SND_SOC_DPCM_TRIGGER_POST},
-        .no_host_mode = SND_SOC_DAI_LINK_NO_HOST,
-        .ignore_suspend = 1,
-        .codec_dai_name = "snd-soc-dummy-dai",
-        .codec_name = "snd-soc-dummy",
-    },
-#endif
 	{/* hw:x,32 */
 		.name = "Tertiary MI2S TX_Hostless",
 		.stream_name = "Tertiary MI2S_TX Hostless Capture",
@@ -6635,6 +6700,7 @@ static struct snd_soc_dai_link msm_common_dai_links[] = {
 		.codec_dai_name = "snd-soc-dummy-dai",
 		.codec_name = "snd-soc-dummy",
 	},
+#endif
 };
 
 static struct snd_soc_dai_link msm_bolero_fe_dai_links[] = {
@@ -7035,12 +7101,29 @@ static struct snd_soc_dai_link msm_tdm_be_dai_links[] = {
 		.ops = &kona_tdm_be_ops,
 		.ignore_suspend = 1,
 	},
+#if 0
+	{
+		.name = LPASS_BE_TERT_TDM_RX_0,
+		.stream_name = "Tertiary TDM0 Playback",
+		.cpu_dai_name = "msm-dai-q6-tdm.36896",
+		.platform_name = "msm-pcm-routing",
+		.codec_name = "msm-stub-codec.1",
+		.codec_dai_name = "msm-stub-rx",
+		.no_pcm = 1,
+		.dpcm_playback = 1,
+		.id = MSM_BACKEND_DAI_TERT_TDM_RX_0,
+		.be_hw_params_fixup = msm_be_hw_params_fixup,
+		.ops = &kona_tdm_be_ops,
+		.ignore_suspend = 1,
+		.ignore_pmdown_time = 1,
+	},
+#endif
 	{
 		.name = LPASS_BE_TERT_TDM_TX_0,
 		.stream_name = "Tertiary TDM0 Capture",
 		.cpu_dai_name = "msm-dai-q6-tdm.36897",
 		.platform_name = "msm-pcm-routing",
-#if defined(CONFIG_TARGET_PRODUCT_MUNCH)
+#if defined(CONFIG_BOARD_MUNCH)
 		.codecs = tfa98xx_codec_components,
 		.num_codecs = ARRAY_SIZE(tfa98xx_codec_components),
 #else
@@ -7449,10 +7532,9 @@ static struct snd_soc_dai_link msm_mi2s_be_dai_links[] = {
 	},
 };
 
-#ifdef AUDIO_SM8250_FLAG  //j1
 static struct snd_soc_dai_link tert_mi2s_rx_cs35l41_dai_links[] = {
-#if defined(CONFIG_TARGET_PRODUCT_APOLLO) || defined(CONFIG_TARGET_PRODUCT_CAS)  || defined(CONFIG_TARGET_PRODUCT_ALIOTH)|| defined(CONFIG_TARGET_PRODUCT_ENUMA) || defined(CONFIG_TARGET_PRODUCT_ELISH) \
- 	|| defined(CONFIG_TARGET_PRODUCT_PSYCHE)
+#if defined(CONFIG_BOARD_APOLLO) || defined(CONFIG_BOARD_CAS)  || defined(CONFIG_BOARD_ALIOTH)|| defined(CONFIG_BOARD_ENUMA) || defined(CONFIG_BOARD_ELISH) \
+ 	|| defined(CONFIG_BOARD_PSYCHE) || defined(CONFIG_BOARD_DAGU)
 	{
 		.name = LPASS_BE_TERT_TDM_RX_0,
 		.stream_name = "Tertiary TDM0 Playback",
@@ -7505,8 +7587,62 @@ static struct snd_soc_dai_link tert_mi2s_rx_cs35l41_dai_links[] = {
 #endif
 };
 
+static struct snd_soc_dai_link tert_mi2s_rx_aw882xx_dai_links[] = {
+#if defined(CONFIG_BOARD_PIPA)
+	{
+		.name = LPASS_BE_TERT_TDM_RX_0,
+		.stream_name = "Tertiary TDM0 Playback",
+		.cpu_dai_name = "msm-dai-q6-tdm.36896",
+		.platform_name = "msm-pcm-routing",
+		.codecs = aw882xx_codec_components,
+		.num_codecs = ARRAY_SIZE(aw882xx_codec_components),
+		.no_pcm = 1,
+		.dpcm_playback = 1,
+		.id = MSM_BACKEND_DAI_TERT_TDM_RX_0,
+		.be_hw_params_fixup = msm_be_hw_params_fixup,
+		.ops = &kona_tdm_be_ops,
+		.ignore_suspend = 1,
+		.ignore_pmdown_time = 1,
+		//.init = &cs35l41_init,
+	},
+  	{
+		.name = LPASS_BE_TERT_TDM_RX_1,
+		.stream_name = "Tertiary TDM1 Playback",
+		.cpu_dai_name = "msm-dai-q6-tdm.36898",
+		.platform_name = "msm-pcm-routing",
+		.codecs = aw882xx_codec_components,
+		.num_codecs = ARRAY_SIZE(aw882xx_codec_components),
+		.no_pcm = 1,
+		.dpcm_playback = 1,
+		.id = MSM_BACKEND_DAI_TERT_TDM_RX_1,
+		.be_hw_params_fixup = msm_be_hw_params_fixup,
+		.ops = &kona_tdm_be_ops,
+		.ignore_suspend = 1,
+		.ignore_pmdown_time = 1,
+		//.init = &cs35l41_init,
+	},
+#else
+	{
+		.name = LPASS_BE_TERT_MI2S_RX,
+		.stream_name = "Tertiary MI2S Playback",
+		.cpu_dai_name = "msm-dai-q6-mi2s.2",
+		.platform_name = "msm-pcm-routing",
+		.codecs = aw882xx_codec_components,
+		.num_codecs = ARRAY_SIZE(aw882xx_codec_components),
+		.no_pcm = 1,
+		.dpcm_playback = 1,
+		.id = MSM_BACKEND_DAI_TERTIARY_MI2S_RX,
+		.be_hw_params_fixup = msm_be_hw_params_fixup,
+		.ops = &msm_mi2s_be_ops,
+		.ignore_suspend = 1,
+		.ignore_pmdown_time = 1,
+		//.init = &cs35l41_init,
+	},
+#endif
+};
+
 static struct snd_soc_dai_link pri_mi2s_rx_tfa9874_dai_links[] = {
-#if defined(CONFIG_TARGET_PRODUCT_MUNCH)
+#if defined(CONFIG_BOARD_MUNCH)
 	{
 		.name = LPASS_BE_TERT_MI2S_RX,
 		.stream_name = "Tertiary MI2S Playback",
@@ -7541,47 +7677,7 @@ static struct snd_soc_dai_link pri_mi2s_rx_tfa9874_dai_links[] = {
 	},
 #endif
 };
-#endif
 
-#ifdef CONFIG_BOARD_XIAOMI_SM7250
-static struct snd_soc_dai_link sec_mi2s_rx_tfa9874_be_dai_links[] = {
-	{
-		.name = LPASS_BE_SEC_MI2S_RX,
-		.stream_name = "Secondary MI2S Playback",
-		.cpu_dai_name = "msm-dai-q6-mi2s.1",
-		.platform_name = "msm-pcm-routing",
-		.codec_name = "tfa98xx.1-0034",
-		.codec_dai_name = "tfa98xx-aif-1-34",
-		.no_pcm = 1,
-		.dpcm_playback = 1,
-		.id = MSM_BACKEND_DAI_SECONDARY_MI2S_RX,
-		.be_hw_params_fixup = msm_be_hw_params_fixup,
-		.ops = &msm_mi2s_be_ops,
-		.ignore_suspend = 1,
-		.ignore_pmdown_time = 1,
-	},
-};
-
-static struct snd_soc_dai_link sec_mi2s_rx_cs35l41_dai_links[] = {
-	{
-		.name = LPASS_BE_SEC_MI2S_RX,
-		.stream_name = "Secondary MI2S Playback",
-		.cpu_dai_name = "msm-dai-q6-mi2s.1",
-		.platform_name = "msm-pcm-routing",
-		.codecs = cs35l41_codec_components,
-		.num_codecs = ARRAY_SIZE(cs35l41_codec_components),
-		.no_pcm = 1,
-		.dpcm_playback = 1,
-		.id = MSM_BACKEND_DAI_SECONDARY_MI2S_RX,
-		.be_hw_params_fixup = msm_be_hw_params_fixup,
-		.ops = &msm_mi2s_be_ops,
-		.ignore_suspend = 1,
-		.ignore_pmdown_time = 1,
-		.init = &cs35l41_init,
-	},
-};
-
-#endif
 static struct snd_soc_dai_link msm_auxpcm_be_dai_links[] = {
 	/* Primary AUX PCM Backend DAI Links */
 	{
@@ -7975,14 +8071,9 @@ static struct snd_soc_dai_link msm_kona_dai_links[
 			ARRAY_SIZE(msm_common_misc_fe_dai_links) +
 			ARRAY_SIZE(msm_common_be_dai_links) +
 			ARRAY_SIZE(msm_mi2s_be_dai_links) +
-#ifdef AUDIO_SM8250_FLAG
 			ARRAY_SIZE(tert_mi2s_rx_cs35l41_dai_links) +
 			ARRAY_SIZE(pri_mi2s_rx_tfa9874_dai_links) +
-#endif
-#ifdef CONFIG_BOARD_XIAOMI_SM7250
-			ARRAY_SIZE(sec_mi2s_rx_tfa9874_be_dai_links) +
-			ARRAY_SIZE(sec_mi2s_rx_cs35l41_dai_links) +
-#endif
+			ARRAY_SIZE(tert_mi2s_rx_aw882xx_dai_links) +
 			ARRAY_SIZE(msm_auxpcm_be_dai_links) +
 			ARRAY_SIZE(msm_wsa_cdc_dma_be_dai_links) +
 			ARRAY_SIZE(msm_rx_tx_cdc_dma_be_dai_links) +
@@ -8113,7 +8204,7 @@ static struct snd_soc_ops msm_stub_be_ops = {
 
 struct snd_soc_card snd_soc_card_stub_msm = {
 	.name		= "kona-stub-snd-card",
-#if defined(CONFIG_TARGET_PRODUCT_MUNCH)
+#if defined(CONFIG_BOARD_MUNCH)
 	.codec_conf	= tfa98xx_codec_conf,
 	.num_configs	= ARRAY_SIZE(tfa98xx_codec_conf),
 #else
@@ -8287,7 +8378,6 @@ static struct snd_soc_card *populate_snd_card_dailinks(struct device *dev)
 					sizeof(msm_mi2s_be_dai_links));
 				total_links +=
 					ARRAY_SIZE(msm_mi2s_be_dai_links);
-#ifdef AUDIO_SM8250_FLAG
 				if (get_hw_version_platform() == HARDWARE_PLATFORM_UMI ||
 				    get_hw_version_platform() == HARDWARE_PLATFORM_CMI ||
 				    get_hw_version_platform() == HARDWARE_PLATFORM_APOLLO ||
@@ -8295,7 +8385,9 @@ static struct snd_soc_card *populate_snd_card_dailinks(struct device *dev)
 				    get_hw_version_platform() == HARDWARE_PLATFORM_THYME ||
 				    get_hw_version_platform() == HARDWARE_PLATFORM_ENUMA ||
 				    get_hw_version_platform() == HARDWARE_PLATFORM_ELISH ||
-					get_hw_version_platform() == HARDWARE_PLATFORM_CAS) {
+				    get_hw_version_platform() == HARDWARE_PLATFORM_PSYCHE ||
+				    get_hw_version_platform() == HARDWARE_PLATFORM_DAGU ||
+				    get_hw_version_platform() == HARDWARE_PLATFORM_CAS) {
 					memcpy(msm_kona_dai_links + total_links,
 						tert_mi2s_rx_cs35l41_dai_links,
 						sizeof(tert_mi2s_rx_cs35l41_dai_links));
@@ -8308,28 +8400,13 @@ static struct snd_soc_card *populate_snd_card_dailinks(struct device *dev)
 						sizeof(pri_mi2s_rx_tfa9874_dai_links));
 					total_links += ARRAY_SIZE(pri_mi2s_rx_tfa9874_dai_links);
 					dev_info(dev, "%s: Using pri_mi2s_rx_tfa9874_dai_links\n", __func__);
-				}
-#endif
-#ifdef CONFIG_BOARD_XIAOMI_SM7250
-				if (get_hw_version_platform() == HARDWARE_PLATFORM_PICASSO) {
+				} else if (get_hw_version_platform() == HARDWARE_PLATFORM_PIPA) {
 					memcpy(msm_kona_dai_links + total_links,
-						sec_mi2s_rx_tfa9874_be_dai_links,
-						sizeof(sec_mi2s_rx_tfa9874_be_dai_links));
-					total_links += ARRAY_SIZE(sec_mi2s_rx_tfa9874_be_dai_links);
+						tert_mi2s_rx_aw882xx_dai_links,
+						sizeof(tert_mi2s_rx_aw882xx_dai_links));
+					total_links += ARRAY_SIZE(tert_mi2s_rx_aw882xx_dai_links);
+					dev_info(dev, "%s: Using tert_mi2s_rx_aw882xx_dai_links\n", __func__);
 				}
-				if (get_hw_version_platform() == HARDWARE_PLATFORM_MONET) {
-				    memcpy(msm_kona_dai_links + total_links,
-					    sec_mi2s_rx_cs35l41_dai_links,
-					    sizeof(sec_mi2s_rx_cs35l41_dai_links));
-				    total_links += ARRAY_SIZE(sec_mi2s_rx_cs35l41_dai_links);
-				}
-				if (get_hw_version_platform() == HARDWARE_PLATFORM_VANGOGH) {
-				    memcpy(msm_kona_dai_links + total_links,
-					    sec_mi2s_rx_cs35l41_dai_links,
-					    sizeof(sec_mi2s_rx_cs35l41_dai_links));
-				    total_links += ARRAY_SIZE(sec_mi2s_rx_cs35l41_dai_links);
-				}
-#endif
 			}
 		}
 

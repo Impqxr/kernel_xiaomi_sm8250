@@ -11,6 +11,7 @@
  * published by the Free Software Foundation.
  *
  */
+#define DEBUG
 
 //#define BRINGUP_IRQ_VERIFY
 #define FAST_SWITCH_WORKAROUND
@@ -1440,6 +1441,9 @@ static const struct snd_kcontrol_new cs35l41_aud_controls[] = {
 	SOC_SINGLE("VPBR Config", CS35L41_VPBR_CFG, 0, 0x7FFFFFF, 0),
 	SOC_SINGLE("Noise Gate Config", CS35L41_NG_CFG, 0, 0x3FFF, 0),
 	SOC_SINGLE("GLOBAL_EN from GPIO Control", CS35L41_PWR_CTRL1, 8, 1, 0),
+#if defined(AUDIO_SMART_PA_STANDBY_SUPPORT)
+	SOC_SINGLE("GLOBAL_EN Control", CS35L41_PWR_CTRL1, 0, 1, 0), // for pa standby
+#endif
 	SOC_SINGLE("Boost Converter Enable", CS35L41_PWR_CTRL2, 4, 3, 0),
 	SOC_SINGLE("AMP Enable", CS35L41_PWR_CTRL2, 0, 1, 0),
 	WM_ADSP_FW_CONTROL("DSP1", 0),
@@ -2259,8 +2263,10 @@ static int cs35l41_pcm_hw_params(struct snd_pcm_substream *substream,
 			CS35L41_GLOBAL_FS_MASK,
 			cs35l41_fs_rates[i].fs_cfg << CS35L41_GLOBAL_FS_SHIFT);
 
-#if defined(CONFIG_TARGET_PRODUCT_ENUMA) || defined(CONFIG_TARGET_PRODUCT_ELISH)
+#if defined(CONFIG_BOARD_ENUMA) || defined(CONFIG_BOARD_ELISH)
 	cs35l41_component_set_sysclk(dai->component, 0, 0, 8 * rate * asp_width, 0);
+#elif defined(CONFIG_BOARD_DAGU)
+	cs35l41_component_set_sysclk(dai->component, 0, 0, 4 * rate * asp_width, 0);
 #else
 	cs35l41_component_set_sysclk(dai->component, 0, 0, 2 * rate * asp_width, 0);
 #endif
@@ -2327,7 +2333,7 @@ static int cs35l41_pcm_startup(struct snd_pcm_substream *substream,
 			snd_soc_component_get_drvdata(dai->component);
 	
 	dev_dbg(cs35l41->dev, "%s\n", __func__);
-#if defined(CONFIG_TARGET_PRODUCT_ENUMA) || defined(CONFIG_TARGET_PRODUCT_ELISH)
+#if defined(CONFIG_BOARD_ENUMA) || defined(CONFIG_BOARD_ELISH) || defined(CONFIG_BOARD_DAGU)
 		cs35l41_set_dai_fmt(dai, SND_SOC_DAIFMT_CBS_CFS|SND_SOC_DAIFMT_DSP_A);
 #else
 		cs35l41_set_dai_fmt(dai, SND_SOC_DAIFMT_CBS_CFS|SND_SOC_DAIFMT_I2S);
@@ -3861,6 +3867,7 @@ int cs35l41_probe(struct cs35l41_private *cs35l41,
 	ret = snd_soc_register_component(cs35l41->dev,
 					&soc_component_dev_cs35l41,
 					cs35l41_dai, ARRAY_SIZE(cs35l41_dai));
+
 	if (ret < 0) {
 		dev_err(cs35l41->dev, "%s: Register codec failed\n", __func__);
 		goto err;

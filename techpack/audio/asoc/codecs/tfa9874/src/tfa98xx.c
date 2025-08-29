@@ -26,10 +26,10 @@
 #include <linux/debugfs.h>
 #include <linux/version.h>
 #include <linux/input.h>
-#include "config.h"
-#include "tfa98xx.h"
-#include "tfa.h"
-#include "tfa_dsp_fw.h"
+#include "../inc/config.h"
+#include "../inc/tfa98xx.h"
+#include "../inc/tfa.h"
+#include "../inc/tfa_dsp_fw.h"
 
 #undef pr_info
 #undef pr_err
@@ -39,9 +39,9 @@
 #define pr_err(fmt, args...) printk(KERN_ERR "[tfa9874] " pr_fmt(fmt), ##args)
 
 /* required for enum tfa9912_irq */
-#include "tfa98xx_tfafieldnames.h"
+#include "../inc/tfa98xx_tfafieldnames.h"
 
-#include "spk-id.h"
+#include "../inc/spk-id.h"
 
 #define TFA98XX_VERSION	TFA98XX_API_REV_STR
 
@@ -81,7 +81,7 @@ static TfaContainer_t *tfa98xx_container = NULL;
 static int tfa98xx_kmsg_regs = 0;
 static int tfa98xx_ftrace_regs = 0;
 
-#if defined(CONFIG_TARGET_PRODUCT_MUNCH)
+#if defined(CONFIG_BOARD_MUNCH)
 static char *fw_name = "tfa98xx.cnt";
 module_param(fw_name, charp, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(fw_name, "TFA98xx DSP firmware (container file) name.");
@@ -3162,6 +3162,11 @@ static int tfa98xx_mute(struct snd_soc_dai *dai, int mute, int stream)
 		 */
 		if (stream == SNDRV_PCM_STREAM_PLAYBACK){
 			tfa98xx->pstream = 0;
+#if defined(CONFIG_BOARD_MUNCH)
+			if(gpio_is_valid(tfa98xx->spk_sw_gpio)){
+				gpio_direction_output(tfa98xx->spk_sw_gpio, 0);
+			}
+#endif
 		} else
 			tfa98xx->cstream = 0;
 		if (tfa98xx->pstream != 0 || tfa98xx->cstream != 0)
@@ -3178,7 +3183,7 @@ static int tfa98xx_mute(struct snd_soc_dai *dai, int mute, int stream)
 			return 0;
 		mutex_lock(&tfa98xx->dsp_lock);
 #ifdef TFA_NON_DSP_SOLUTION
-#if defined(CONFIG_TARGET_PRODUCT_MUNCH)
+#if defined(CONFIG_BOARD_MUNCH)
 		if (strcmp (tfa_cont_profile_name (tfa98xx, tfa98xx_mixer_profile), "handset") != 0
 				&& !(strstr(tfaContProfileName(tfa98xx->tfa->cnt, tfa98xx->tfa->dev_idx, tfa98xx_mixer_profile), ".standby") != NULL)) {
 			tfa98xx_send_mute_cmd(TFA_KCONTROL_VALUE_ENABLED);
@@ -3190,13 +3195,6 @@ static int tfa98xx_mute(struct snd_soc_dai *dai, int mute, int stream)
 #endif
 #endif
 		tfa_dev_stop(tfa98xx->tfa);
-#if defined(CONFIG_TARGET_PRODUCT_MUNCH)
-		if (stream == SNDRV_PCM_STREAM_PLAYBACK) {
-			if(gpio_is_valid(tfa98xx->spk_sw_gpio)){
-				gpio_direction_output(tfa98xx->spk_sw_gpio, 0);
-			}
-		}
-#endif
 		tfa98xx->dsp_init = TFA98XX_DSP_INIT_STOPPED;
 		mutex_unlock(&tfa98xx->dsp_lock);
         if(tfa98xx->flags & TFA98XX_FLAG_ADAPT_NOISE_MODE)
@@ -3205,7 +3203,7 @@ static int tfa98xx_mute(struct snd_soc_dai *dai, int mute, int stream)
 	else {
 		if (stream == SNDRV_PCM_STREAM_PLAYBACK) {
 			tfa98xx->pstream = 1;
-#if defined(CONFIG_TARGET_PRODUCT_MUNCH)
+#if defined(CONFIG_BOARD_MUNCH)
 			if(1 == tfa98xx_mixer_profile){
 				if(gpio_is_valid(tfa98xx->spk_sw_gpio)){
 					gpio_direction_output(tfa98xx->spk_sw_gpio, 1);
@@ -3217,7 +3215,7 @@ static int tfa98xx_mute(struct snd_soc_dai *dai, int mute, int stream)
 			}
 #endif
 #ifdef TFA_NON_DSP_SOLUTION
-#if defined(CONFIG_TARGET_PRODUCT_MUNCH)
+#if defined(CONFIG_BOARD_MUNCH)
 			if (tfa98xx->tfa->is_probus_device
 					&& (strcmp (tfa_cont_profile_name (tfa98xx, tfa98xx_mixer_profile), "handset") != 0)
 					&& !(strstr(tfaContProfileName(tfa98xx->tfa->cnt, tfa98xx->tfa->dev_idx, tfa98xx_mixer_profile), ".standby") != NULL)) {
@@ -4211,9 +4209,8 @@ static int tfa98xx_i2c_probe(struct i2c_client *i2c,
 
 	/* Power up! */
     /* we should reset chip only 1 times if all reset pin connected to 1 GPIO. */
-    if (0 == tfa98xx_device_count) {
+    if (0 == tfa98xx_device_count)
     	tfa98xx_ext_reset(tfa98xx);
-    }
 
 	if ((no_start == 0) && (no_reset == 0)) {
 		ret = regmap_read(tfa98xx->regmap, 0x03, &reg);
