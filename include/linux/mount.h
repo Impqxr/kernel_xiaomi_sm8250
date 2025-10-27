@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 /*
  *
- * Definitions for mount interface. This describes the in the kernel build 
+ * Definitions for mount interface. This describes the in the kernel build
  * linkedlist with mounted filesystems.
  *
  * Author:  Marco van Wieringen <mvw@planets.elm.net>
@@ -69,6 +69,9 @@ struct vfsmount {
 	struct dentry *mnt_root;	/* root of the mounted tree */
 	struct super_block *mnt_sb;	/* pointer to superblock */
 	int mnt_flags;
+	#ifdef CONFIG_KSU_SUSFS
+	u64 susfs_mnt_id_backup;
+	#endif
 	ANDROID_KABI_RESERVE(1);
 	ANDROID_KABI_RESERVE(2);
 	ANDROID_KABI_RESERVE(3);
