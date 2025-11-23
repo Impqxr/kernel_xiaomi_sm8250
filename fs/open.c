@@ -31,6 +31,9 @@
 #include <linux/ima.h>
 #include <linux/dnotify.h>
 #include <linux/compat.h>
+#ifdef CONFIG_KSU_SUSFS
+#include <linux/susfs_def.h>
+#endif
 
 #include "internal.h"
 
@@ -357,6 +360,11 @@ extern int ksu_handle_faccessat(int *dfd, const char __user **filename_user, int
  * We do this by temporarily clearing all FS-related capabilities and
  * switching the fsuid/fsgid around to the real ones.
  */
+#ifdef CONFIG_KSU_SUSFS
+extern bool __ksu_is_allow_uid_for_current(uid_t uid);
+extern int ksu_handle_faccessat(int *dfd, const char __user **filename_user, int *mode,
+			int *flags);
+#endif
 long do_faccessat(int dfd, const char __user *filename, int mode)
 {
 	const struct cred *old_cred;
@@ -367,7 +375,15 @@ long do_faccessat(int dfd, const char __user *filename, int mode)
 	int res;
 	unsigned int lookup_flags = LOOKUP_FOLLOW;
 #ifdef CONFIG_KSU
+    if (likely(susfs_is_current_proc_umounted())) {
+        goto orig_flow;
+    }
+
+    if (unlikely(__ksu_is_allow_uid_for_current(current_uid().val))) {
         ksu_handle_faccessat(&dfd, &filename, &mode, NULL);
+    }
+
+orig_flow:
 #endif
 	if (mode & ~S_IRWXO)	/* where's F_OK, X_OK, W_OK, R_OK? */
 		return -EINVAL;
@@ -1064,7 +1080,7 @@ struct file *filp_open(const char *filename, int flags, umode_t mode)
 {
 	struct filename *name = getname_kernel(filename);
 	struct file *file = ERR_CAST(name);
-	
+
 	if (!IS_ERR(name)) {
 		file = file_open_name(name, flags, mode);
 		putname(name);
