@@ -1107,9 +1107,6 @@ vfs_kern_mount(struct file_system_type *type, int flags, const char *name, void 
 	if (!type)
 		return ERR_PTR(-ENODEV);
 
-	if (!fc->root)
-		return ERR_PTR(-EINVAL);
-	sb = fc->root->d_sb;
 #ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
 // We keep checking for ksu process
 	if (susfs_is_current_ksu_domain()) {
